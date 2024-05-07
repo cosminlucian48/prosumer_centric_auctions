@@ -16,7 +16,7 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
         public int myProsumerId = 0;
         public double currentLoad = 0.0;
         public DateTime lastTimestamp;
-        public int getNewLoadInterval = 5 * Utils.Delay;
+        public int getNewLoadInterval = Utils.EnergyRateNumberOfDelays * Utils.Delay;
         private System.Timers.Timer _timer;
 
         public ProsumerGeneratorAgent(string prosumerName) : base()
@@ -41,6 +41,7 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
         {
             List<ProsumerGeneratorDataModel> results = await DatabaseConnection.Instance.GetProsumerGenerationByIdAsync(myProsumerId, lastTimestamp.ToString("hh:mm:ss tt"));
             ProsumerGeneratorDataModel response = results.FirstOrDefault();
+
             if (response == null) return;
             this.currentLoad = response.GenerationRate;
             Send(myProsumerName, Utils.Str("generation_update", this.currentLoad));

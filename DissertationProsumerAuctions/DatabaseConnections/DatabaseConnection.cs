@@ -47,5 +47,11 @@ namespace DissertationProsumerAuctions.DatabaseConnections
         {
             return await _database.QueryAsync<ProsumerGeneratorDataModel>($"SELECT * from ProsumerGeneration where ProsumerId={id} and Time='{timestamp}' LIMIT 1;");
         }
+
+        public async Task<List<EnergyMarketPriceDataModel>> GetEnergyMarketPricesbyTime(string timestamp)
+        {
+            return await _database.QueryAsync<EnergyMarketPriceDataModel>($"SELECT * from EnergyMarketPrices where Time='{timestamp}' LIMIT 1;");
+
+        }
     }
 }

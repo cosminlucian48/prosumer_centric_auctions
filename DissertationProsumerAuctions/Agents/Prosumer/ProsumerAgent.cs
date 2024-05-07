@@ -16,6 +16,9 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
         private double currentBatteryStorageCapacity;
         private double energyInTransit;
 
+        private double currentGridBuyPrice;
+        private double currentGridSellPrice;
+
         private double currentBill = 0.0;
 
         private bool flagMessageFromLoadAgent = false;
@@ -27,12 +30,13 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
             prosumerId = Int32.Parse(this.Name.Remove(0, 8));
             Console.WriteLine("[{0} {1}] Hi", this.Name, prosumerId);
 
+
         }
 
         public override void Act(Message message)
         {
             Console.WriteLine("\t[{1} -> {0}]: {2}", this.Name, message.Sender, message.Content);
-            Console.WriteLine("Energy in transit {0}; current bill {1}", this.energyInTransit, this.currentBill);
+            //Console.WriteLine("Energy in transit {0}; current bill {1}", this.energyInTransit, this.currentBill);
 
             string action; string parameters;
             Utils.ParseMessage(message.Content, out action, out parameters);
@@ -55,6 +59,11 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
                     HandleSellEnergyConfirmation(parameters); break;
                 case "buy_energy_confirmation":
                     HandleBuyEnergyConfirmation(parameters); break;
+                case "find_prosumers":
+                    Send(message.Sender, Utils.Str("found_prosumer", this.Name));
+                    break;
+                case "energy_market_price":
+                    HandleEnergyMarketPrice(parameters); break;
                 default:
                     break;
             }
@@ -124,6 +133,14 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
             Utils.ParseMessage(parameters, out energyBought, out moneyToPay);
             this.currentLoadEnergyTotal -= Double.Parse(energyBought);
             this.currentBill -= Double.Parse(moneyToPay);
+        }
+
+        private void HandleEnergyMarketPrice(string gridEnergyprice)
+        {
+            this.currentGridBuyPrice = Double.Parse(gridEnergyprice);
+            this.currentGridSellPrice = this.currentGridBuyPrice*2;
+
+            Console.WriteLine($"{this.currentGridBuyPrice} {this.currentGridSellPrice}");
         }
     }
 }

@@ -30,6 +30,8 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
             _timer.Elapsed += t_Elapsed;
             _timer.Interval = batterySOCNotificationInterval;
 
+            this.currentCapacity = this.maximumCapacity;
+
 
             //new NotificationHub().NotifyClients(groupName, "This message is for clients who are part of the 'Womens' group.");
 
@@ -38,7 +40,7 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
 
         private void t_Elapsed(object sender, ElapsedEventArgs e)
         {
-            Send(this.myProsumerName, Utils.Str("battery_soc", this.currentCapacity));
+            //Send(this.myProsumerName, Utils.Str("battery_soc", this.currentCapacity));
             return;
         }
 

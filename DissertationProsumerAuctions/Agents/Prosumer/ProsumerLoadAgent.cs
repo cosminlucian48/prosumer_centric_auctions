@@ -1,12 +1,14 @@
 ﻿using ActressMas;
 using DissertationProsumerAuctions.DatabaseConnections;
 using DissertationProsumerAuctions.Models;
+using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Timers;
+using System.Configuration;
 
 namespace DissertationProsumerAuctions.Agents.Prosumer
 {
@@ -18,7 +20,7 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
         public int myProsumerId = 0;
         public double currentLoad = 0.0;
         public DateTime lastTimestamp;
-        public int getNewLoadInterval = 5 * Utils.Delay;
+        public int getNewLoadInterval = Utils.EnergyRateNumberOfDelays * Utils.Delay;
         private System.Timers.Timer _timer;
 
         public ProsumerLoadAgent(string prosumerName) : base()

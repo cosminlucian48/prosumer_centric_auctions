@@ -3,13 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Configuration;
 
 namespace DissertationProsumerAuctions
 {
     public class Utils
     {
         public static int NoTurns = 10;
-
+        public static int EnergyRateNumberOfDelays = Convert.ToInt32(ConfigurationManager.AppSettings.Get("EnergyRateNumberOfDelays"));
         public static int Delay = 1500;
         public static Random RandNoGen = new Random();
 
