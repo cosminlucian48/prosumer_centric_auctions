@@ -24,13 +24,13 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
         private bool flagMessageFromLoadAgent = false;
         private bool flagMessageFromGeneratorAgent = false;
 
+        private bool isAuctioning = false;
+
         public ProsumerAgent() : base() { }
         public override void Setup()
         {
             prosumerId = Int32.Parse(this.Name.Remove(0, 8));
             Console.WriteLine("[{0} {1}] Hi", this.Name, prosumerId);
-
-
         }
 
         public override void Act(Message message)
@@ -94,15 +94,39 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
 
         private void HandleEnergyConsume()
         {
-            if (this.currentGeneratedEnergyTotal > this.currentLoadEnergyTotal)
+            /*if (this.currentGeneratedEnergyTotal > this.currentLoadEnergyTotal)
             {
-
                 double energyToStore = this.currentGeneratedEnergyTotal - this.currentLoadEnergyTotal;
                 this.energyInTransit += energyToStore;
 
                 this.currentGeneratedEnergyTotal = 0.0;
                 this.currentLoadEnergyTotal = 0.0;
                 Send($"battery{this.Name}", Utils.Str("store", energyToStore));
+            }*/
+
+            if (this.currentGeneratedEnergyTotal > this.currentLoadEnergyTotal)
+            {
+                double excessEnergy = this.currentGeneratedEnergyTotal - this.currentLoadEnergyTotal;
+                this.energyInTransit += excessEnergy;
+                double floorPrice = this.currentGridSellPrice * 0.8;
+                double startingPrice = this.currentGridSellPrice * 1.2;
+
+                this.isAuctioning = true;
+                Send("dutchauctioneer", Utils.Str("excess_to_sell",excessEnergy, floorPrice, startingPrice)); // command + energy units + floor price
+            }
+            else if (this.currentGeneratedEnergyTotal < this.currentLoadEnergyTotal)
+            {
+                double energyDeficit = this.currentLoadEnergyTotal - this.currentGeneratedEnergyTotal;
+                this.energyInTransit -= energyDeficit;
+                double ceilingPrice = this.currentGridBuyPrice;
+
+                this.isAuctioning = true;
+                Send("dutchauctioneer", Utils.Str("deficit_to_buy", energyDeficit)); // command + energy units + ceiling price
+            }
+            else
+            {
+                this.currentGeneratedEnergyTotal = 0.0;
+                this.currentLoadEnergyTotal = 0.0;
             }
         }
 

@@ -9,16 +9,18 @@ using System.Timers;
 
 namespace DissertationProsumerAuctions.Agents.Auctions.DutchAuctioneer
 {
-    internal class DutchAuctioneer : Agent
+    internal class DutchAuctioneerAgent : Agent
     {
         private System.Timers.Timer _timer;
         public double currentEnergPrice = 0.0;
         public int energyMarketPriceAnnouncementInterval = Utils.EnergyRateNumberOfDelays * Utils.Delay;
         private Dictionary<string, List<double>> LocalEnergyDifference;
-        private List<String> prosumers = new List<String>();
+        private List<String> sellers = new List<String>();
+        private Dictionary<string, double> buyers = new Dictionary<string, double>();
+        //private Dictionary<string, string> sellers = new Dictionary<string, string>();
         public DateTime lastTimestamp;
 
-        public DutchAuctioneer() : base()
+        public DutchAuctioneerAgent() : base()
         {
             _timer = new System.Timers.Timer();
             _timer.Elapsed += t_Elapsed;
@@ -49,6 +51,24 @@ namespace DissertationProsumerAuctions.Agents.Auctions.DutchAuctioneer
             switch (action)
             {
                 case "started":
+                    break;
+                case "deficit_to_buy":
+                    string[] t = parameters.Split(); 
+                    buyers.Add(message.Sender, parameters);
+                    
+                    foreach (KeyValuePair<string, string> kvp in buyers)
+                    {
+                        Console.WriteLine("buyer Key = {0}, Value = {1}", kvp.Key, kvp.Value);
+                    }
+                    Console.WriteLine("end");
+                    break;
+                case "excess_to_sell":
+                    sellers.Add(message.Sender, parameters);
+                    foreach (KeyValuePair<string, string> kvp in sellers)
+                    {
+                        Console.WriteLine("seller Key = {0}, Value = {1}", kvp.Key, kvp.Value);
+                    }
+                    Console.WriteLine("end");
                     break;
                 default:
                     break;

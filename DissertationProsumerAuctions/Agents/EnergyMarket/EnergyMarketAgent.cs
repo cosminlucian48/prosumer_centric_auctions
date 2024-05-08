@@ -14,7 +14,7 @@ namespace DissertationProsumerAuctions.Agents.EnergyMarket
     {
         private System.Timers.Timer _timer;
         public double currentEnergPrice = 0.0;
-        public int energyMarketPriceAnnouncementInterval = Utils.EnergyRateNumberOfDelays * Utils.Delay;
+        public int energyMarketPriceAnnouncementInterval = Utils.EnergyPriceNumberOfDelays * Utils.Delay;
         private Dictionary<string, List<double>> LocalEnergyDifference;
         private List<String> prosumers = new List<String>();
         public DateTime lastTimestamp;

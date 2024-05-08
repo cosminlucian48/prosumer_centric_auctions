@@ -11,6 +11,7 @@ namespace DissertationProsumerAuctions
     {
         public static int NoTurns = 10;
         public static int EnergyRateNumberOfDelays = Convert.ToInt32(ConfigurationManager.AppSettings.Get("EnergyRateNumberOfDelays"));
+        public static int EnergyPriceNumberOfDelays = Convert.ToInt32(ConfigurationManager.AppSettings.Get("EnergyPriceNumberOfDelays"));
         public static int Delay = 1500;
         public static Random RandNoGen = new Random();
 
@@ -38,6 +39,11 @@ namespace DissertationProsumerAuctions
         public static string Str(object p1, object p2, object p3)
         {
             return string.Format("{0} {1} {2}", p1, p2, p3);
+        }
+
+        public static string Str(object p1, object p2, object p3, object p4)
+        {
+            return string.Format("{0} {1} {2} {3}", p1, p2, p3, p4);
         }
     }
 }
