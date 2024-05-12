@@ -24,13 +24,26 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
         private bool flagMessageFromLoadAgent = false;
         private bool flagMessageFromGeneratorAgent = false;
 
+        private double auctionEnergyPriceVariationFromGrid;
+
         private bool isAuctioning = false;
+
+        private Dictionary<string, bool> prosumerSetupReadiness;
 
         public ProsumerAgent() : base() { }
         public override void Setup()
         {
             prosumerId = Int32.Parse(this.Name.Remove(0, 8));
             Console.WriteLine("[{0} {1}] Hi", this.Name, prosumerId);
+            prosumerSetupReadiness = new Dictionary<string, bool>
+            {
+                {$"loadprosumer{prosumerId}", false },
+                {$"generatorprosumer{prosumerId}", false },
+                {$"batteryprosumer{prosumerId}", false },
+                {$"energymarket1", false }
+            };
+
+            auctionEnergyPriceVariationFromGrid = Utils.RandNoGen.NextDouble() * (1.2 - 0.8) + 0.8;
         }
 
         public override void Act(Message message)
@@ -43,8 +56,9 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
 
             switch (action)
             {
-                case "started":
-                    break;
+                case "component_ready":
+                case "find_prosumers":
+                    HandleProsumerComponentSetup(message.Sender, action); break;
                 case "battery_soc":
                     HandleBatterySOC(parameters); break;
                 case "load_update":
@@ -59,14 +73,28 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
                     HandleSellEnergyConfirmation(parameters); break;
                 case "buy_energy_confirmation":
                     HandleBuyEnergyConfirmation(parameters); break;
-                case "find_prosumers":
-                    Send(message.Sender, Utils.Str("found_prosumer", this.Name));
-                    break;
                 case "energy_market_price":
                     HandleEnergyMarketPrice(parameters); break;
+                case "startAuctioning":
+                    HandleStartAuctioning();  break;
+                case "selling_price":
+                    HandleSellingPrice(message.Sender, parameters); break;
                 default:
                     break;
             }
+        }
+
+        private void HandleProsumerComponentSetup(string sender, string action)
+        {
+            prosumerSetupReadiness.TryGetValue(sender, out bool value);
+            prosumerSetupReadiness[sender] = value || true;
+            bool allComponentsAreReady = prosumerSetupReadiness.Values.All(componentIsReady => componentIsReady);
+
+            if (allComponentsAreReady)
+            {
+                SendToMany(prosumerSetupReadiness.Keys.ToList(), "prosumer_start");
+            }
+            
         }
 
         private void HandleBatterySOC(string currentBatteryStorageCapacity)
@@ -104,6 +132,19 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
                 Send($"battery{this.Name}", Utils.Str("store", energyToStore));
             }*/
 
+            if (this.currentGeneratedEnergyTotal - this.currentLoadEnergyTotal != 0)
+            {
+                Send(this.Name, "startAuctioning");
+            }
+            else
+            {
+                this.currentGeneratedEnergyTotal = 0.0;
+                this.currentLoadEnergyTotal = 0.0;
+            }
+        }
+
+        private void HandleStartAuctioning()
+        {
             if (this.currentGeneratedEnergyTotal > this.currentLoadEnergyTotal)
             {
                 double excessEnergy = this.currentGeneratedEnergyTotal - this.currentLoadEnergyTotal;
@@ -112,21 +153,15 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
                 double startingPrice = this.currentGridSellPrice * 1.2;
 
                 this.isAuctioning = true;
-                Send("dutchauctioneer", Utils.Str("excess_to_sell",excessEnergy, floorPrice, startingPrice)); // command + energy units + floor price
+                Send("dutchauctioneer", Utils.Str("excess_to_sell", excessEnergy, floorPrice, startingPrice)); // command + energy units + floor price
             }
             else if (this.currentGeneratedEnergyTotal < this.currentLoadEnergyTotal)
             {
                 double energyDeficit = this.currentLoadEnergyTotal - this.currentGeneratedEnergyTotal;
                 this.energyInTransit -= energyDeficit;
-                double ceilingPrice = this.currentGridBuyPrice;
 
                 this.isAuctioning = true;
                 Send("dutchauctioneer", Utils.Str("deficit_to_buy", energyDeficit)); // command + energy units + ceiling price
-            }
-            else
-            {
-                this.currentGeneratedEnergyTotal = 0.0;
-                this.currentLoadEnergyTotal = 0.0;
             }
         }
 
@@ -163,8 +198,28 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
         {
             this.currentGridBuyPrice = Double.Parse(gridEnergyprice);
             this.currentGridSellPrice = this.currentGridBuyPrice*2;
+            //Console.WriteLine($"{this.currentGridBuyPrice} {this.currentGridSellPrice}");
+        }
 
-            Console.WriteLine($"{this.currentGridBuyPrice} {this.currentGridSellPrice}");
+        private void HandleSellingPrice(string auctioneer, string auctionEnergyPrice)
+        {
+            if (isAuctioning)
+            {
+                double _auctionEnergyPrice = Double.Parse(auctionEnergyPrice);
+                if(_auctionEnergyPrice <= currentGridSellPrice * auctionEnergyPriceVariationFromGrid)
+                {
+                    Send(auctioneer, Utils.Str("energy_bid",auctionEnergyPrice));
+                    isAuctioning = false;
+                }
+                else
+                {
+                    Console.WriteLine($" Price not good. {_auctionEnergyPrice} > my price: {currentGridSellPrice * auctionEnergyPriceVariationFromGrid}");
+                }
+            }
+            else
+            {
+                
+            }
         }
     }
 }

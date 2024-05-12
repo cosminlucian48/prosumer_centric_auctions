@@ -10,8 +10,12 @@ namespace DissertationProsumerAuctions
     public class Utils
     {
         public static int NoTurns = 10;
-        public static int EnergyRateNumberOfDelays = Convert.ToInt32(ConfigurationManager.AppSettings.Get("EnergyRateNumberOfDelays"));
+        public static int EnergyLoadRateNumberOfDelays = Convert.ToInt32(ConfigurationManager.AppSettings.Get("EnergyLoadRateNumberOfDelays"));
+        public static int EnergyGenerationRateNumberOfDelays  = Convert.ToInt32(ConfigurationManager.AppSettings.Get("EnergyGenerationRateNumberOfDelays"));
         public static int EnergyPriceNumberOfDelays = Convert.ToInt32(ConfigurationManager.AppSettings.Get("EnergyPriceNumberOfDelays"));
+        public static int NumberOfProsumers = Convert.ToInt32(ConfigurationManager.AppSettings.Get("NumberOfProsumers"));
+        public static int EnergyMarketParticipantsSignUpInterval = Convert.ToInt32(ConfigurationManager.AppSettings.Get("EnergyMarketParticipantsSignUpInterval"));
+
         public static int Delay = 1500;
         public static Random RandNoGen = new Random();
 

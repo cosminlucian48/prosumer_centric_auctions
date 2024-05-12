@@ -30,21 +30,33 @@ namespace DissertationProsumerAuctions.Agents.EnergyMarket
 
         private async void t_Elapsed(object sender, ElapsedEventArgs e)
         {
+            updateProsumerGridEnergyPrice();
+            return;
+        }
 
+        private async void updateProsumerGridEnergyPrice(string prosumer="")
+        {
             List<EnergyMarketPriceDataModel> results = await DatabaseConnection.Instance.GetEnergyMarketPricesbyTime(lastTimestamp.ToString("hh:mm:ss tt"));
             EnergyMarketPriceDataModel response = results.FirstOrDefault();
-            
+
             if (response == null) return;
             this.currentEnergPrice = response.Price;
-            SendToMany(this.prosumers, Utils.Str("energy_market_price", this.currentEnergPrice));
+
+            if (prosumer == "")
+            {
+                SendToMany(this.prosumers, Utils.Str("energy_market_price", this.currentEnergPrice));
+            }
+            else
+            {
+                Send(prosumer, Utils.Str("energy_market_price", this.currentEnergPrice));
+            }
+
             lastTimestamp = lastTimestamp.AddMinutes(15);
-            return;
         }
 
         public override void Setup()
         {
             Console.WriteLine("[{0}] Hi - Energy Market Agent started", this.Name);
-            _timer.Start();
             Broadcast("find_prosumers");
         }
 
@@ -59,17 +71,19 @@ namespace DissertationProsumerAuctions.Agents.EnergyMarket
             {
                 case "started":
                     break;
-                case "found_prosumer":
-                    HandleFoundProsumer(parameters);
+                case "prosumer_start":
+                    HandleProsumerStart(message.Sender);
                     break;
                 default:
                     break;
             }
         }
 
-        private void HandleFoundProsumer(String prosumerName)
+        private void HandleProsumerStart(string prosumerName)
         {
             this.prosumers.Add(prosumerName);
+            updateProsumerGridEnergyPrice(prosumerName);
+            _timer.Start();
         }
     }
 }

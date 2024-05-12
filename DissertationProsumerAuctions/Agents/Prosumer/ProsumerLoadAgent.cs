@@ -20,7 +20,7 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
         public int myProsumerId = 0;
         public double currentLoad = 0.0;
         public DateTime lastTimestamp;
-        public int getNewLoadInterval = Utils.EnergyRateNumberOfDelays * Utils.Delay;
+        public int getNewLoadInterval = Utils.EnergyLoadRateNumberOfDelays * Utils.Delay;
         private System.Timers.Timer _timer;
 
         public ProsumerLoadAgent(string prosumerName) : base()
@@ -37,10 +37,16 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
         public override void Setup()
         {
             Console.WriteLine("[{0}] Hi - Prosumer Load started", this.Name);
-            _timer.Start();
+            Send(this.myProsumerName, "component_ready");
         }
 
-        private async void t_Elapsed(object sender, ElapsedEventArgs e)
+        private void t_Elapsed(object sender, ElapsedEventArgs e)
+        {
+            updateProsumerLoadRate();
+            return;
+        }
+
+        private async void updateProsumerLoadRate()
         {
             List<ProsumerLoadDataModel> results = await DatabaseConnection.Instance.GetProsumerLoadByIdAsync(myProsumerId, lastTimestamp.ToString("hh:mm:ss tt"));
             ProsumerLoadDataModel response = results.FirstOrDefault();
@@ -48,8 +54,6 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
             this.currentLoad = response.Load;
             Send(myProsumerName, Utils.Str("load_update", this.currentLoad));
             lastTimestamp = lastTimestamp.AddMinutes(15);
-
-            return;
         }
 
 
@@ -63,16 +67,19 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
 
             switch (action)
             {
-                case "started":
-                    if (message.Sender == myProsumerName)
-                    {
-                        Send(message.Sender, "started");
-                    }
+                case "prosumer_start":
+                    HandleProsumerStart();
                     break;
 
                 default:
                     break;
             }
+        }
+
+        private void HandleProsumerStart()
+        {
+            updateProsumerLoadRate();
+            _timer.Start();
         }
     }
 }

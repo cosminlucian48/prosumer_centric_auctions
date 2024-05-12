@@ -16,7 +16,7 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
         public int myProsumerId = 0;
         public double currentLoad = 0.0;
         public DateTime lastTimestamp;
-        public int getNewLoadInterval = Utils.EnergyRateNumberOfDelays * Utils.Delay;
+        public int getNewLoadInterval = Utils.EnergyGenerationRateNumberOfDelays * Utils.Delay;
         private System.Timers.Timer _timer;
 
         public ProsumerGeneratorAgent(string prosumerName) : base()
@@ -34,10 +34,17 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
         public override void Setup()
         {
             Console.WriteLine("[{0}] Hi - Prosumer Generator started", this.Name);
-            _timer.Start();
+            Send(this.myProsumerName, "component_ready");
+            //updateProsumerGenerationRate();
         }
 
-        private async void t_Elapsed(object sender, ElapsedEventArgs e)
+        private void t_Elapsed(object sender, ElapsedEventArgs e)
+        {
+            updateProsumerGenerationRate();
+            return;
+        }
+
+        private async void updateProsumerGenerationRate()
         {
             List<ProsumerGeneratorDataModel> results = await DatabaseConnection.Instance.GetProsumerGenerationByIdAsync(myProsumerId, lastTimestamp.ToString("hh:mm:ss tt"));
             ProsumerGeneratorDataModel response = results.FirstOrDefault();
@@ -46,8 +53,6 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
             this.currentLoad = response.GenerationRate;
             Send(myProsumerName, Utils.Str("generation_update", this.currentLoad));
             lastTimestamp = lastTimestamp.AddMinutes(15);
-
-            return;
         }
 
         public override void Act(Message message)
@@ -59,12 +64,18 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
 
             switch (action)
             {
-                case "started":
+                case "prosumer_start":
+                    HandleProsumerStart();
                     break;
-
                 default:
                     break;
             }
+        }
+
+        private void HandleProsumerStart()
+        {
+            updateProsumerGenerationRate();
+            _timer.Start();
         }
     }
 }

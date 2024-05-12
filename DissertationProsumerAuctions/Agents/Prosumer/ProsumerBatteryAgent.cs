@@ -31,11 +31,6 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
             _timer.Interval = batterySOCNotificationInterval;
 
             this.currentCapacity = this.maximumCapacity;
-
-
-            //new NotificationHub().NotifyClients(groupName, "This message is for clients who are part of the 'Womens' group.");
-
-
         }
 
         private void t_Elapsed(object sender, ElapsedEventArgs e)
@@ -47,7 +42,8 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
         public override void Setup()
         {
             Console.WriteLine("[{0}] Hi - Prosumer battery started", this.Name);
-            _timer.Start();
+            Send(this.myProsumerName, "component_ready");
+            //_timer.Start();
         }
 
         public override void Act(Message message)
@@ -59,7 +55,8 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
 
             switch (action)
             {
-                case "started":
+                case "prosumer_start":
+                    HandleProsumerStart();
                     break;
                 case "store":
                     HandleStoreEnergy(parameters);
@@ -87,6 +84,11 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
                 }
                 Send(myProsumerName, Utils.Str("battery_maximum_capacity", capacityDifference));
             }
+        }
+
+        private void HandleProsumerStart()
+        {
+            _timer.Start();
         }
     }
 }

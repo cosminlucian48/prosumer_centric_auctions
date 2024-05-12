@@ -12,15 +12,16 @@ class Program
         //DataAccess.InitializeDatabase();
         var world = new World(0, Utils.Delay);
 
-        var prosumerAgent1 = new ProsumerAgent();
-        var prosumerAgent2 = new ProsumerAgent();
-        var prosumerAgent3 = new ProsumerAgent();
-
         var energyMarketAgent = new EnergyMarketAgent();
         var dutchAuctioneerAgent = new DutchAuctioneerAgent();
-        world.AddProsumer(prosumerAgent1, "prosumer1");
-        world.AddProsumer(prosumerAgent2, "prosumer2");
-        world.AddProsumer(prosumerAgent3, "prosumer3");
+
+        for(int i=1;i <= Utils.NumberOfProsumers; i++)
+        {
+            var prosumerAgent = new ProsumerAgent();
+            world.AddProsumer(prosumerAgent, $"prosumer{i}");
+        }
+
+
         world.Add(energyMarketAgent, "energymarket1");
         world.Add(dutchAuctioneerAgent, "dutchauctioneer");
 
