@@ -18,6 +18,8 @@ namespace DissertationProsumerAuctions
 
         public static int Delay = 1500;
         public static Random RandNoGen = new Random();
+        public static readonly Guid CorrelationId = Guid.NewGuid();
+        
 
         public static void ParseMessage(string content, out string action, out string parameters)
         {
@@ -34,7 +36,7 @@ namespace DissertationProsumerAuctions
                 parameters += t[t.Length - 1];
             }
         }
-
+        
         public static string Str(object p1, object p2)
         {
             return string.Format("{0} {1}", p1, p2);

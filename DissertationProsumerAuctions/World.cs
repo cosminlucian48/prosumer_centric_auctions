@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using DissertationProsumerAuctions.Agents.EnergyMarket;
+using DissertationProsumerAuctions.Agents.Prosumer.Components;
 
 namespace DissertationProsumerAuctions
 {
@@ -13,6 +15,11 @@ namespace DissertationProsumerAuctions
         public World(int numberOfTurns = 0, int delayAfterTurn = 0, bool randomOrder = true, Random rand = null, bool parallel = true)
             : base(numberOfTurns, delayAfterTurn, randomOrder, rand, parallel)
         {
+            var energyMarketAgent = new EnergyMarketAgent();
+            Add(energyMarketAgent, "energymarket1");
+            
+            var tickAgent = new TickAgent();
+            Add(tickAgent, "tick");
         }
         public void AddProsumer(Agent prosumer, string prosumerName)
         {

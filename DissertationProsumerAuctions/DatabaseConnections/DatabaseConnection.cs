@@ -16,7 +16,7 @@ namespace DissertationProsumerAuctions.DatabaseConnections
         private DatabaseConnection()
         {
             //string baseDataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "YourAppName");
-            string databasePath = "../../../myDatabase.db";
+            string databasePath = "/Users/lucian-cosmin.bejan-topse/personal-projects/RiderProjects/prosumer_centric_auctions/DissertationProsumerAuctions/myDatabase.db";
 
             _database = new SQLiteAsyncConnection(databasePath);
         }

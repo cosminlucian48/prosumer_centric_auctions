@@ -30,6 +30,8 @@ namespace DissertationProsumerAuctions.Agents.EnergyMarket
 
         private async void t_Elapsed(object sender, ElapsedEventArgs e)
         {
+            MasLog.InfoDebug(this, "debug", $"t_Elapsed energyMarketPriceAnnouncementInterval {this.energyMarketPriceAnnouncementInterval}");
+            
             updateProsumerGridEnergyPrice();
             return;
         }
@@ -56,13 +58,13 @@ namespace DissertationProsumerAuctions.Agents.EnergyMarket
 
         public override void Setup()
         {
-            Console.WriteLine("[{0}] Hi - Energy Market Agent started", this.Name);
+            MasLog.Event(this, "message", "Hi - Energy Market Agent started");
             Broadcast("find_prosumers");
         }
 
         public override void Act(Message message)
         {
-            Console.WriteLine("\t[{1} -> {0}]: {2}", this.Name, message.Sender, message.Content);
+            MasLog.Received(this, message, $"[{message.Sender} -> {Name}]: {message.Content}");
 
             string action; string parameters;
             Utils.ParseMessage(message.Content, out action, out parameters);

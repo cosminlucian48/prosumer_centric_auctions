@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Serilog;
 
 namespace DissertationProsumerAuctions.Agents.Prosumer
 {
@@ -34,7 +35,7 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
         public override void Setup()
         {
             prosumerId = Int32.Parse(this.Name.Remove(0, 8));
-            Console.WriteLine("[{0} {1}] Hi", this.Name, prosumerId);
+            MasLog.Event(this, "message", "Hi - Prosumer Agent started!");
             prosumerSetupReadiness = new Dictionary<string, bool>
             {
                 {$"loadprosumer{prosumerId}", false },
@@ -42,21 +43,22 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
                 {$"batteryprosumer{prosumerId}", false },
                 {$"energymarket1", false }
             };
-
+            
             auctionEnergyPriceVariationFromGrid = Utils.RandNoGen.NextDouble() * (1.2 - 0.8) + 0.8;
         }
 
         public override void Act(Message message)
         {
-            Console.WriteLine("\t[{1} -> {0}]: {2}", this.Name, message.Sender, message.Content);
-            //Console.WriteLine("Energy in transit {0}; current bill {1}", this.energyInTransit, this.currentBill);
+            MasLog.Received(this, message, $"[{message.Sender} -> {Name}]: {message.Content}");
+            MasLog.InfoDebug(this, "debug", $"Energy in transit {this.energyInTransit}; current bill { this.currentBill}");
 
             string action; string parameters;
             Utils.ParseMessage(message.Content, out action, out parameters);
 
             switch (action)
             {
-                case "component_ready":
+                case "tick": break;
+                case "component_ready": break;
                 case "find_prosumers":
                     HandleProsumerComponentSetup(message.Sender, action); break;
                 case "battery_soc":
@@ -79,8 +81,6 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
                     HandleStartAuctioning();  break;
                 case "selling_price":
                     HandleSellingPrice(message.Sender, parameters); break;
-                default:
-                    break;
             }
         }
 
@@ -194,11 +194,11 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
             this.currentBill -= Double.Parse(moneyToPay);
         }
 
-        private void HandleEnergyMarketPrice(string gridEnergyprice)
+        private void HandleEnergyMarketPrice(string gridEnergyPrice)
         {
-            this.currentGridBuyPrice = Double.Parse(gridEnergyprice);
+            this.currentGridBuyPrice = Double.Parse(gridEnergyPrice);
             this.currentGridSellPrice = this.currentGridBuyPrice*2;
-            //Console.WriteLine($"{this.currentGridBuyPrice} {this.currentGridSellPrice}");
+            // Log.Information($"{this.currentGridBuyPrice} {this.currentGridSellPrice}");
         }
 
         private void HandleSellingPrice(string auctioneer, string auctionEnergyPrice)
@@ -213,7 +213,7 @@ namespace DissertationProsumerAuctions.Agents.Prosumer
                 }
                 else
                 {
-                    Console.WriteLine($" Price not good. {_auctionEnergyPrice} > my price: {currentGridSellPrice * auctionEnergyPriceVariationFromGrid}");
+                    Log.Information($"Price not good. {_auctionEnergyPrice} > my price: {currentGridSellPrice * auctionEnergyPriceVariationFromGrid}");
                 }
             }
             else
