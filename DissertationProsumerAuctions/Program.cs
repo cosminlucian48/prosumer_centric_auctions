@@ -1,41 +1,56 @@
-﻿using System;
-using ActressMas;
+using DissertationProsumerAuctions.Services;
+using DissertationProsumerAuctions.Hubs;
 using DissertationProsumerAuctions;
-using DissertationProsumerAuctions.Agents.Auctions.DutchAuctioneer;
-using DissertationProsumerAuctions.Agents.EnergyMarket;
-using DissertationProsumerAuctions.Agents.Prosumer;
-using Microsoft.AspNetCore.Builder;
 using Serilog;
 
-class Program
+var builder = WebApplication.CreateBuilder(args);
+
+// Configure Serilog
+Log.Logger = new LoggerConfiguration()
+    .Enrich.FromLogContext()
+    .WriteTo.Console(
+        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}",
+        theme: Serilog.Sinks.SystemConsole.Themes.AnsiConsoleTheme.Code
+    )             // always write to console
+    .WriteTo.Seq("http://localhost:5341")   // send logs to Seq (optional - fails gracefully if Seq not running)
+    .CreateLogger();
+
+builder.Host.UseSerilog();
+
+// Add services
+builder.Services.AddControllers();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<SimulationService>();
+builder.Services.AddSingleton<SimulationBroadcastService>();
+builder.Services.AddCors(options =>
 {
-    private static void Main(string[] args)
+    options.AddPolicy("AllowFrontend", policy =>
     {
-        Log.Logger = new LoggerConfiguration()
-            .Enrich.FromLogContext()
-            .WriteTo.Console()             // still see logs in terminal
-            .WriteTo.Seq("http://localhost:5341")   // send logs to Seq
-            .CreateLogger();
+        policy.WithOrigins("http://localhost:3000", "http://localhost:5173", "http://localhost:4200", "http://localhost:8080")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
 
-        Log.Information("Starting MAS simulation...");
+var app = builder.Build();
 
-        // Initialize MAS environment
-        var world = new World(0, Utils.Delay);
+// Configure the HTTP request pipeline
+app.UseCors("AllowFrontend");
+app.UseRouting();
+app.UseAuthorization();
 
-        
-        var dutchAuctioneerAgent = new DutchAuctioneerAgent();
+app.MapControllers();
+app.MapHub<SimulationHub>("/simulationHub");
 
-        for (int i = 1; i <= Utils.NumberOfProsumers; i++)
-        {
-            var prosumerAgent = new ProsumerAgent();
-            world.AddProsumer(prosumerAgent, $"prosumer{i}");
-        }
-        
-        // world.Add(dutchAuctioneerAgent);
+Log.Information("Starting MAS simulation API...");
+Log.Information($"API is running on: {app.Urls}");
+Log.Information($"SignalR Hub available at: /simulationHub");
+Log.Information($"API endpoints available at: /api/simulation and /api/data");
 
-        Log.Information($"Starting MAS world {Utils.CorrelationId}...");
-        world.Start();
+// Optional: Auto-initialize simulation on startup (comment out if you want manual initialization via API)
+var simulationService = app.Services.GetRequiredService<SimulationService>();
+simulationService.InitializeWorld(Utils.NumberOfProsumers);
+Log.Information($"Auto-initialized simulation with {Utils.NumberOfProsumers} prosumers");
 
-        Log.Information("MAS simulation finished.");
-    }
-}
+app.Run();
