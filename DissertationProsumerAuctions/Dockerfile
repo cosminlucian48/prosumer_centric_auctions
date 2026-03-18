@@ -1,24 +1,32 @@
-# Use the base .NET 6 SDK image
-FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
+# syntax=docker/dockerfile:1
 
-# Set working directory
-WORKDIR /app
+# Stage 1: restore dependencies with strong layer caching.
+# Only the project file is copied first so restore is reused unless dependencies change.
+FROM mcr.microsoft.com/dotnet/sdk:6.0 AS restore
+WORKDIR /src
 
-# Copy the .NET 6 console application project files
+# Copy only project definition first to leverage Docker layer caching for restore.
+COPY DissertationProsumerAuctions.csproj ./
+RUN dotnet restore DissertationProsumerAuctions.csproj
+
+# Stage 2: development image used by docker-compose.
+# Source is bind-mounted at runtime; this stage just provides SDK + default watch command.
+FROM restore AS dev
+WORKDIR /src
 COPY . .
 
-# Restore dependencies and build the application
-RUN dotnet restore
-RUN dotnet build -c Release -o out
+# Better file change detection when source is bind-mounted from host (Windows/macOS).
+ENV DOTNET_USE_POLLING_FILE_WATCHER=1
+CMD ["dotnet", "watch", "--project", "DissertationProsumerAuctions.csproj", "run"]
 
-# Runtime image
+# Stage 3: publish optimized release binaries.
+FROM restore AS build
+WORKDIR /src
+COPY . .
+RUN dotnet publish DissertationProsumerAuctions.csproj -c Release -o /app/publish --no-restore /p:UseAppHost=false
+
+# Stage 4: minimal runtime image for production-like execution.
 FROM mcr.microsoft.com/dotnet/runtime:6.0 AS runtime
-
-# Set working directory
 WORKDIR /app
-
-# Copy the built application from the build stage
-COPY --from=build /app/out .
-
-# Set entrypoint to run the executable
-CMD ["dotnet", "DissertationProsumerAuctions.dll"]
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "DissertationProsumerAuctions.dll"]

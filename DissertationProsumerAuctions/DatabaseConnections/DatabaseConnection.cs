@@ -15,8 +15,14 @@ namespace DissertationProsumerAuctions.DatabaseConnections
 
         private DatabaseConnection()
         {
-            //string baseDataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "YourAppName");
-            string databasePath = "/Users/lucian-cosmin.bejan-topse/personal-projects/RiderProjects/prosumer_centric_auctions/DissertationProsumerAuctions/myDatabase.db";
+            string databasePath = Environment.GetEnvironmentVariable("DB_PATH")
+                                  ?? Path.Combine(AppContext.BaseDirectory, "myDatabase.db");
+            
+            // Fallback for IDE runs where the file may still sit in the project root.
+            if (!File.Exists(databasePath))
+            {
+                databasePath = Path.Combine(Directory.GetCurrentDirectory(), "myDatabase.db");
+            }
 
             _database = new SQLiteAsyncConnection(databasePath);
         }

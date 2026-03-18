@@ -1,0 +1,64 @@
+# Set a stable compose project name so generated image/network/volume names are predictable.
+name: dissertationprosumerauctions
+
+services:
+  sqlite-data:
+    image: alpine:3.20
+    container_name: sqlite-data
+    command:
+      [
+        "sh",
+        "-c",
+        "if [ ! -f /data/myDatabase.db ]; then cp /seed/myDatabase.db /data/myDatabase.db; fi; tail -f /dev/null"
+      ]
+    volumes:
+      - db_data:/data
+      - ./myDatabase.db:/seed/myDatabase.db:ro
+
+  seq:
+    image: datalust/seq:latest
+    container_name: seq
+    environment:
+      ACCEPT_EULA: "Y"
+      SEQ_FIRSTRUN_NOAUTHENTICATION: "true"
+    ports:
+      - "5341:80"
+    volumes:
+      - seq_data:/data
+
+  prosumer-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    # Fixed container name for easier attach/logs commands.
+    container_name: prosumer-dev
+    working_dir: /src
+    volumes:
+      # Bind source for live edit + watch reload.
+      - .:/src
+      # Keep build outputs in Docker volumes to avoid host file lock issues.
+      - prosumer_bin:/src/bin
+      - prosumer_obj:/src/obj
+      # Share SQLite file via Docker volume (outside app build output folders).
+      - db_data:/data
+    environment:
+      DOTNET_USE_POLLING_FILE_WATCHER: "1"
+      DOTNET_WATCH_RESTART_ON_RUDE_EDIT: "true"
+      SEQ_URL: "http://seq:80"
+      DB_PATH: "/data/myDatabase.db"
+    depends_on:
+      - sqlite-data
+      - seq
+    # Full restart on each save; no in-place hot reload patching.
+    command: ["dotnet", "watch", "--no-hot-reload", "--project", "DissertationProsumerAuctions.csproj", "run"]
+    # Tiny init process to forward signals and reap child processes correctly.
+    init: true
+    stdin_open: true
+    tty: true
+
+volumes:
+  db_data:
+  prosumer_bin:
+  prosumer_obj:
+  seq_data:
