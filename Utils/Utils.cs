@@ -1,11 +1,11 @@
-using DissertationProsumerAuctions.Services;
+using ProsumerAuctionPlatform.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace DissertationProsumerAuctions
+namespace ProsumerAuctionPlatform
 {
     public class Utils
     {

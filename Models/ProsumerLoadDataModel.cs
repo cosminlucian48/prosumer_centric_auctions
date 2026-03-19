@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace DissertationProsumerAuctions.Models
+namespace ProsumerAuctionPlatform.Models
 {
     /// <summary>
     /// Data model for prosumer load information.

@@ -51,7 +51,7 @@ services:
       - sqlite-data
       - seq
     # Full restart on each save; no in-place hot reload patching.
-    command: ["dotnet", "watch", "--no-hot-reload", "--project", "DissertationProsumerAuctions.csproj", "run"]
+    command: ["dotnet", "watch", "--no-hot-reload", "--project", "ProsumerAuctionPlatform.csproj", "run"]
     # Tiny init process to forward signals and reap child processes correctly.
     init: true
     stdin_open: true

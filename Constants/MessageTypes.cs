@@ -1,4 +1,4 @@
-namespace DissertationProsumerAuctions.Constants
+namespace ProsumerAuctionPlatform.Constants
 {
     /// <summary>
     /// Constants for message types used in agent communication.

@@ -1,4 +1,4 @@
-# DissertationProsumerAuctions Documentation
+# ProsumerAuctionPlatform Documentation
 
 This documentation is organized by architecture layers as defined in the project design.
 

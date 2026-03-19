@@ -1,10 +1,10 @@
 using ActressMas;
-using DissertationProsumerAuctions.Constants;
+using ProsumerAuctionPlatform.Constants;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace DissertationProsumerAuctions.Agents.Support
+namespace ProsumerAuctionPlatform.Agents.Support
 {
     /// <summary>
     /// Agent responsible for broadcasting time ticks to all agents in the system.

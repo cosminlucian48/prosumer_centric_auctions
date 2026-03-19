@@ -1,4 +1,4 @@
-using DissertationProsumerAuctions.Models;
+using ProsumerAuctionPlatform.Models;
 using Serilog;
 using SQLite;
 using System;
@@ -8,7 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace DissertationProsumerAuctions.DatabaseConnections
+namespace ProsumerAuctionPlatform.DatabaseConnections
 {
     /// <summary>
     /// Singleton implementation of database connection.

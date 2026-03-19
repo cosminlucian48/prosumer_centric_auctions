@@ -1,12 +1,12 @@
 using ActressMas;
-using DissertationProsumerAuctions.Agents.Prosumer;
-using DissertationProsumerAuctions.Agents.Support;
-using DissertationProsumerAuctions.Constants;
+using ProsumerAuctionPlatform.Agents.Prosumer;
+using ProsumerAuctionPlatform.Agents.Support;
+using ProsumerAuctionPlatform.Constants;
 using System;
-using DissertationProsumerAuctions.Agents.EnergyMarket;
-using DissertationProsumerAuctions.Agents.Prosumer.Components;
+using ProsumerAuctionPlatform.Agents.EnergyMarket;
+using ProsumerAuctionPlatform.Agents.Prosumer.Components;
 
-namespace DissertationProsumerAuctions
+namespace ProsumerAuctionPlatform
 {
     internal class World : EnvironmentMas
     {

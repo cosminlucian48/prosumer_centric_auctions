@@ -1,4 +1,4 @@
-namespace DissertationProsumerAuctions.Services
+namespace ProsumerAuctionPlatform.Services
 {
     /// <summary>
     /// Interface for configuration service providing type-safe access to configuration values.

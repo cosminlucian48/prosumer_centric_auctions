@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace DissertationProsumerAuctions;
+namespace ProsumerAuctionPlatform;
 
 using Serilog;
 using ActressMas;

@@ -1,12 +1,12 @@
 using ActressMas;
-using DissertationProsumerAuctions.Constants;
-using DissertationProsumerAuctions.DatabaseConnections;
-using DissertationProsumerAuctions.Models;
+using ProsumerAuctionPlatform.Constants;
+using ProsumerAuctionPlatform.DatabaseConnections;
+using ProsumerAuctionPlatform.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace DissertationProsumerAuctions.Agents.EnergyMarket
+namespace ProsumerAuctionPlatform.Agents.EnergyMarket
 {
     /// <summary>
     /// Agent responsible for managing energy market prices and broadcasting them to prosumers.

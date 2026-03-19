@@ -1,9 +1,9 @@
 using ActressMas;
-using DissertationProsumerAuctions.Constants;
-using DissertationProsumerAuctions.DatabaseConnections;
+using ProsumerAuctionPlatform.Constants;
+using ProsumerAuctionPlatform.DatabaseConnections;
 using System.Linq;
 
-namespace DissertationProsumerAuctions.Agents.Prosumer.Components
+namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
 {
     internal class ProsumerGeneratorAgent : Agent
     {

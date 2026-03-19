@@ -1,11 +1,11 @@
-using System;
+﻿using System;
 using System.IO;
 using ActressMas;
-using DissertationProsumerAuctions;
-using DissertationProsumerAuctions.Agents.Auctions.DutchAuctioneer;
-using DissertationProsumerAuctions.Agents.EnergyMarket;
-using DissertationProsumerAuctions.Agents.Prosumer;
-using DissertationProsumerAuctions.Services;
+using ProsumerAuctionPlatform;
+using ProsumerAuctionPlatform.Agents.Auctions.DutchAuctioneer;
+using ProsumerAuctionPlatform.Agents.EnergyMarket;
+using ProsumerAuctionPlatform.Agents.Prosumer;
+using ProsumerAuctionPlatform.Services;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 

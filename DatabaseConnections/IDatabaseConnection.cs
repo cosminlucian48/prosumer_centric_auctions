@@ -1,8 +1,8 @@
-using DissertationProsumerAuctions.Models;
+using ProsumerAuctionPlatform.Models;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace DissertationProsumerAuctions.DatabaseConnections
+namespace ProsumerAuctionPlatform.DatabaseConnections
 {
     /// <summary>
     /// Interface for database connection operations.

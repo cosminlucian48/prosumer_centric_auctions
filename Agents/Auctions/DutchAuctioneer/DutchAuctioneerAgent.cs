@@ -1,12 +1,12 @@
 using ActressMas;
-using DissertationProsumerAuctions.Constants;
-using DissertationProsumerAuctions.DatabaseConnections;
-using DissertationProsumerAuctions.Models;
+using ProsumerAuctionPlatform.Constants;
+using ProsumerAuctionPlatform.DatabaseConnections;
+using ProsumerAuctionPlatform.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace DissertationProsumerAuctions.Agents.Auctions.DutchAuctioneer
+namespace ProsumerAuctionPlatform.Agents.Auctions.DutchAuctioneer
 {
     /// <summary>
     /// Agent responsible for managing Dutch auction transactions between energy buyers and sellers.

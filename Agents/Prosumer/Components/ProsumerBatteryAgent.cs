@@ -1,7 +1,7 @@
 using ActressMas;
-using DissertationProsumerAuctions.Constants;
+using ProsumerAuctionPlatform.Constants;
 
-namespace DissertationProsumerAuctions.Agents.Prosumer.Components
+namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
 {
     internal class ProsumerBatteryAgent : Agent
     {

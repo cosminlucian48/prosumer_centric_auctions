@@ -1,11 +1,11 @@
 using ActressMas;
-using DissertationProsumerAuctions.Constants;
+using ProsumerAuctionPlatform.Constants;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using Serilog;
 
-namespace DissertationProsumerAuctions.Agents.Prosumer
+namespace ProsumerAuctionPlatform.Agents.Prosumer
 {
     internal class ProsumerAgent : Agent
     {

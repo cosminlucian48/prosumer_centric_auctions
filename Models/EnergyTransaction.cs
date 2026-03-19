@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace DissertationProsumerAuctions.Models
+namespace ProsumerAuctionPlatform.Models
 {
     /// <summary>
     /// Represents an energy transaction between a seller and buyer.

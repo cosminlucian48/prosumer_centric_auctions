@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using System.IO;
 
-namespace DissertationProsumerAuctions.Services
+namespace ProsumerAuctionPlatform.Services
 {
     /// <summary>
     /// Implementation of configuration service using Microsoft.Extensions.Configuration.
