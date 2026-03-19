@@ -223,8 +223,8 @@ _ReSharper.*/
 # Visual Studio 6 auto-generated project file (contains which files were open etc.)
 # Visual Studio 6 workspace and project file (working project files containing files to include in project)
 # Backup folder for Package Reference Convert tool in Visual Studio 2017
-# obj/
-# bin/
-# packages/
+obj/
+bin/
+packages/
 
 ActressMAS\ v3.0
