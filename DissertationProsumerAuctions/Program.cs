@@ -22,12 +22,21 @@ class Program
         // Initialize configuration service
         var configService = new ConfigurationService(configuration);
         Utils.InitializeConfiguration(configService);
+        // If SEQ_URL is not provided (for example local non-Docker execution),
+        // use host-mapped Seq endpoint on localhost.
+        var seqUrl = Environment.GetEnvironmentVariable("SEQ_URL");
+        if (string.IsNullOrWhiteSpace(seqUrl))
+        {
+            seqUrl = "http://localhost:5341";
+        }
 
         Log.Logger = new LoggerConfiguration()
             .Enrich.FromLogContext()
             .WriteTo.Console()             // still see logs in terminal
-            .WriteTo.Seq("http://localhost:5341")   // send logs to Seq
+            .WriteTo.Seq(seqUrl)   // send logs to Seq
             .CreateLogger();
+
+        Log.Information("Seq sink URL: {SeqUrl}", seqUrl);
 
         Log.Information("Starting MAS simulation...");
 

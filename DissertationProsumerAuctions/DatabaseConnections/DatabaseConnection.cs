@@ -22,16 +22,13 @@ namespace DissertationProsumerAuctions.DatabaseConnections
 
         private DatabaseConnection()
         {
-            // Try to find database in multiple locations
-            // 1. Check in base directory (bin/Debug or bin/Release)
-            // 2. Check in project root (parent of bin directory)
-            // 3. Check in current working directory
-            string databasePath = FindDatabaseFile();
-            // Log.Information("Database path: {DatabasePath}", databasePath);
-
-            if (string.IsNullOrEmpty(databasePath) || !File.Exists(databasePath))
+            string databasePath = Environment.GetEnvironmentVariable("DB_PATH")
+                                  ?? Path.Combine(AppContext.BaseDirectory, "myDatabase.db");
+            
+            // Fallback for IDE runs where the file may still sit in the project root.
+            if (!File.Exists(databasePath))
             {
-                throw new FileNotFoundException($"Database file 'myDatabase.db' not found. Searched in: {AppDomain.CurrentDomain.BaseDirectory} and parent directories.");
+                databasePath = Path.Combine(Directory.GetCurrentDirectory(), "myDatabase.db");
             }
 
             _database = new SQLiteAsyncConnection(databasePath);
