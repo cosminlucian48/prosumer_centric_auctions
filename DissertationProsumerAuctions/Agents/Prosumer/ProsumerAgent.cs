@@ -1,224 +1,300 @@
-﻿using ActressMas;
+using ActressMas;
+using DissertationProsumerAuctions.Constants;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Serilog;
 
 namespace DissertationProsumerAuctions.Agents.Prosumer
 {
     internal class ProsumerAgent : Agent
     {
-        public int counter = 0;
-        public int prosumerId = 0;
-        private double currentLoadEnergyTotal;
-        private double currentGeneratedEnergyTotal;
-        private double currentBatteryStorageCapacity;
-        private double energyInTransit;
+        public int ProsumerId { get; private set; } = 0;
+        private double _currentLoadEnergyTotal;
+        private double _currentGeneratedEnergyTotal;
+        private double _currentBatteryStorageCapacity;
+        private double _energyInTransit;
 
-        private double currentGridBuyPrice;
-        private double currentGridSellPrice;
+        private double _currentGridBuyPrice;
+        private double _currentGridSellPrice;
 
-        private double currentBill = 0.0;
+        private double _currentBill = 0.0;
 
-        private bool flagMessageFromLoadAgent = false;
-        private bool flagMessageFromGeneratorAgent = false;
+        private bool _flagMessageFromLoadAgent = false;
+        private bool _flagMessageFromGeneratorAgent = false;
 
-        private double auctionEnergyPriceVariationFromGrid;
+        private double _auctionEnergyPriceVariationFromGrid;
 
-        private bool isAuctioning = false;
+        private bool _isAuctioning = false;
 
-        private Dictionary<string, bool> prosumerSetupReadiness;
+        private readonly Dictionary<string, bool> _prosumerSetupReadiness = new Dictionary<string, bool>();
 
         public ProsumerAgent() : base() { }
         public override void Setup()
         {
-            prosumerId = Int32.Parse(this.Name.Remove(0, 8));
-            MasLog.Event(this, "message", "Hi - Prosumer Agent started!");
-            prosumerSetupReadiness = new Dictionary<string, bool>
+            try
             {
-                {$"loadprosumer{prosumerId}", false },
-                {$"generatorprosumer{prosumerId}", false },
-                {$"batteryprosumer{prosumerId}", false },
-                {$"energymarket1", false }
-            };
+                if (this.Name.Length > 8 && int.TryParse(this.Name.Remove(0, 8), out int id))
+                {
+                    ProsumerId = id;
+                }
+                else
+                {
+                    Serilog.Log.Warning("Invalid prosumer name format: {Name}", this.Name);
+                }
+                MasLog.Event(this, "message", "Hi - Prosumer Agent started!");
+            _prosumerSetupReadiness[AgentNames.GetLoadName(this.Name)] = false;
+            _prosumerSetupReadiness[AgentNames.GetGeneratorName(this.Name)] = false;
+            _prosumerSetupReadiness[AgentNames.GetBatteryName(this.Name)] = false;
+            _prosumerSetupReadiness[AgentNames.EnergyMarket] = false;
             
-            auctionEnergyPriceVariationFromGrid = Utils.RandNoGen.NextDouble() * (1.2 - 0.8) + 0.8;
+            _auctionEnergyPriceVariationFromGrid = Utils.RandNoGen.NextDouble() * (1.2 - 0.8) + 0.8;
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Error setting up ProsumerAgent {AgentName}", this.Name);
+                throw;
+            }
         }
 
         public override void Act(Message message)
         {
-            MasLog.Received(this, message, $"[{message.Sender} -> {Name}]: {message.Content}");
-            MasLog.InfoDebug(this, "debug", $"Energy in transit {this.energyInTransit}; current bill { this.currentBill}");
-
-            string action; string parameters;
-            Utils.ParseMessage(message.Content, out action, out parameters);
-
-            switch (action)
+            try
             {
-                case "tick": break;
-                case "component_ready": break;
-                case "find_prosumers":
+                MasLog.Received(this, message, $"[{message.Sender} -> {Name}]: {message.Content}");
+                MasLog.InfoDebug(this, "debug", $"Energy in transit {this._energyInTransit}; current bill { this._currentBill}");
+
+                if (!Utils.TryParseMessage(message.Content, out string action, out string parameters))
+                {
+                    MasLog.Event(this, "error", $"Failed to parse message: {message.Content}");
+                    return;
+                }
+
+                switch (action)
+            {
+                case MessageTypes.Tick: break;
+                case MessageTypes.ComponentReady: break;
+                case MessageTypes.FindProsumers:
                     HandleProsumerComponentSetup(message.Sender, action); break;
-                case "battery_soc":
+                case MessageTypes.BatterySOC:
                     HandleBatterySOC(parameters); break;
-                case "load_update":
+                case MessageTypes.LoadUpdate:
                     HandleLoadUpdate(parameters); break;
-                case "generation_update":
+                case MessageTypes.GenerationUpdate:
                     HandleGenerationUpdate(parameters); break;
-                case "energy_stored":
+                case MessageTypes.EnergyStored:
                     HandleEnergyStored(parameters); break;
-                case "battery_maximum_capacity":
+                case MessageTypes.BatteryMaximumCapacity:
                     HandleBatteryAtMaximumCapacity(parameters); break;
-                case "sell_energy_confirmation":
+                case MessageTypes.SellEnergyConfirmation:
                     HandleSellEnergyConfirmation(parameters); break;
-                case "buy_energy_confirmation":
+                case MessageTypes.BuyEnergyConfirmation:
                     HandleBuyEnergyConfirmation(parameters); break;
-                case "energy_market_price":
+                case MessageTypes.EnergyMarketPrice:
                     HandleEnergyMarketPrice(parameters); break;
-                case "startAuctioning":
+                case MessageTypes.StartAuctioning:
                     HandleStartAuctioning();  break;
-                case "selling_price":
+                case MessageTypes.SellingPrice:
                     HandleSellingPrice(message.Sender, parameters); break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Error processing message in ProsumerAgent {AgentName}: {Message}", Name, message?.Content);
             }
         }
 
         private void HandleProsumerComponentSetup(string sender, string action)
         {
-            prosumerSetupReadiness.TryGetValue(sender, out bool value);
-            prosumerSetupReadiness[sender] = value || true;
-            bool allComponentsAreReady = prosumerSetupReadiness.Values.All(componentIsReady => componentIsReady);
+            if (_prosumerSetupReadiness.ContainsKey(sender))
+            {
+                _prosumerSetupReadiness[sender] = true;
+            }
+            bool allComponentsAreReady = _prosumerSetupReadiness.Values.All(componentIsReady => componentIsReady);
 
             if (allComponentsAreReady)
             {
-                SendToMany(prosumerSetupReadiness.Keys.ToList(), "prosumer_start");
+                SendToMany(_prosumerSetupReadiness.Keys.ToList(), MessageTypes.ProsumerStart);
             }
             
         }
 
         private void HandleBatterySOC(string currentBatteryStorageCapacity)
         {
-            this.currentBatteryStorageCapacity = Double.Parse(currentBatteryStorageCapacity);
+            if (double.TryParse(currentBatteryStorageCapacity, out double capacity))
+            {
+                this._currentBatteryStorageCapacity = capacity;
+            }
+            else
+            {
+                Serilog.Log.Warning("Invalid battery SOC value: {Value}", currentBatteryStorageCapacity);
+            }
         }
         private void HandleLoadUpdate(string newLoadValue)
         {
-            this.currentLoadEnergyTotal += Double.Parse(newLoadValue);
-            this.flagMessageFromLoadAgent = !this.flagMessageFromLoadAgent;
-            if (this.flagMessageFromLoadAgent == this.flagMessageFromGeneratorAgent)
+            if (double.TryParse(newLoadValue, out double loadValue))
             {
-                HandleEnergyConsume();
+                this._currentLoadEnergyTotal += loadValue;
+                this._flagMessageFromLoadAgent = !this._flagMessageFromLoadAgent;
+                if (this._flagMessageFromLoadAgent == this._flagMessageFromGeneratorAgent)
+                {
+                    HandleEnergyConsume();
+                }
+            }
+            else
+            {
+                Serilog.Log.Warning("Invalid load value: {Value}", newLoadValue);
             }
         }
         private void HandleGenerationUpdate(string newGenerationValue)
         {
-            this.currentGeneratedEnergyTotal += Double.Parse(newGenerationValue);
-            this.flagMessageFromGeneratorAgent = !this.flagMessageFromGeneratorAgent;
-            if (this.flagMessageFromGeneratorAgent == this.flagMessageFromLoadAgent)
+            if (double.TryParse(newGenerationValue, out double generationValue))
             {
-                HandleEnergyConsume();
+                this._currentGeneratedEnergyTotal += generationValue;
+                this._flagMessageFromGeneratorAgent = !this._flagMessageFromGeneratorAgent;
+                if (this._flagMessageFromGeneratorAgent == this._flagMessageFromLoadAgent)
+                {
+                    HandleEnergyConsume();
+                }
+            }
+            else
+            {
+                Serilog.Log.Warning("Invalid generation value: {Value}", newGenerationValue);
             }
         }
 
         private void HandleEnergyConsume()
         {
-            /*if (this.currentGeneratedEnergyTotal > this.currentLoadEnergyTotal)
+            if (this._currentGeneratedEnergyTotal - this._currentLoadEnergyTotal != 0)
             {
-                double energyToStore = this.currentGeneratedEnergyTotal - this.currentLoadEnergyTotal;
-                this.energyInTransit += energyToStore;
-
-                this.currentGeneratedEnergyTotal = 0.0;
-                this.currentLoadEnergyTotal = 0.0;
-                Send($"battery{this.Name}", Utils.Str("store", energyToStore));
-            }*/
-
-            if (this.currentGeneratedEnergyTotal - this.currentLoadEnergyTotal != 0)
-            {
-                Send(this.Name, "startAuctioning");
+                Send(this.Name, MessageTypes.StartAuctioning);
             }
             else
             {
-                this.currentGeneratedEnergyTotal = 0.0;
-                this.currentLoadEnergyTotal = 0.0;
+                this._currentGeneratedEnergyTotal = 0.0;
+                this._currentLoadEnergyTotal = 0.0;
             }
         }
 
         private void HandleStartAuctioning()
         {
-            if (this.currentGeneratedEnergyTotal > this.currentLoadEnergyTotal)
+            if (this._currentGeneratedEnergyTotal > this._currentLoadEnergyTotal)
             {
-                double excessEnergy = this.currentGeneratedEnergyTotal - this.currentLoadEnergyTotal;
-                this.energyInTransit += excessEnergy;
-                double floorPrice = this.currentGridSellPrice * 0.8;
-                double startingPrice = this.currentGridSellPrice * 1.2;
+                double excessEnergy = this._currentGeneratedEnergyTotal - this._currentLoadEnergyTotal;
+                this._energyInTransit += excessEnergy;
+                double floorPrice = this._currentGridSellPrice * 0.8;
+                double startingPrice = this._currentGridSellPrice * 1.2;
 
-                this.isAuctioning = true;
-                Send("dutchauctioneer", Utils.Str("excess_to_sell", excessEnergy, floorPrice, startingPrice)); // command + energy units + floor price
+                this._isAuctioning = true;
+                Send(AgentNames.DutchAuctioneer, Utils.Str(MessageTypes.ExcessToSell, excessEnergy, floorPrice, startingPrice)); // command + energy units + floor price
             }
-            else if (this.currentGeneratedEnergyTotal < this.currentLoadEnergyTotal)
+            else if (this._currentGeneratedEnergyTotal < this._currentLoadEnergyTotal)
             {
-                double energyDeficit = this.currentLoadEnergyTotal - this.currentGeneratedEnergyTotal;
-                this.energyInTransit -= energyDeficit;
+                double energyDeficit = this._currentLoadEnergyTotal - this._currentGeneratedEnergyTotal;
+                this._energyInTransit -= energyDeficit;
 
-                this.isAuctioning = true;
-                Send("dutchauctioneer", Utils.Str("deficit_to_buy", energyDeficit)); // command + energy units + ceiling price
+                this._isAuctioning = true;
+                Send(AgentNames.DutchAuctioneer, Utils.Str(MessageTypes.DeficitToBuy, energyDeficit)); // command + energy units + ceiling price
             }
         }
 
         private void HandleEnergyStored(string energyTriedToStore)
         {
-            this.energyInTransit -= Double.Parse(energyTriedToStore);
+            if (double.TryParse(energyTriedToStore, out double energyStored))
+            {
+                this._energyInTransit -= energyStored;
+            }
+            else
+            {
+                Serilog.Log.Warning("Invalid energy stored value: {Value}", energyTriedToStore);
+            }
         }
 
         private void HandleBatteryAtMaximumCapacity(string capacityDifference)
         {
-            double storedEnergy = Double.Parse(capacityDifference);
-            this.energyInTransit -= storedEnergy;
-            Send("vpp", Utils.Str("sell_energy", this.energyInTransit));
+            if (double.TryParse(capacityDifference, out double storedEnergy))
+            {
+                this._energyInTransit -= storedEnergy;
+                // TODO: Replace with proper VPP agent when implemented
+                Send(AgentNames.VPP, Utils.Str(MessageTypes.SellEnergy, this._energyInTransit));
+            }
+            else
+            {
+                Serilog.Log.Warning("Invalid capacity difference value: {Value}", capacityDifference);
+            }
         }
 
         private void HandleSellEnergyConfirmation(string parameters)
         {
+            if (!Utils.TryParseMessage(parameters, out string energySold, out string moneyReceived))
+            {
+                Serilog.Log.Warning("Failed to parse sell energy confirmation parameters: {Parameters}", parameters);
+                return;
+            }
 
-            string energySold; string moneyReceived;
-            Utils.ParseMessage(parameters, out energySold, out moneyReceived);
-            this.currentBill += Double.Parse(moneyReceived);
-            this.energyInTransit -= Double.Parse(energySold);
+            if (double.TryParse(moneyReceived, out double money) && double.TryParse(energySold, out double energy))
+            {
+                this._currentBill += money;
+                this._energyInTransit -= energy;
+            }
+            else
+            {
+                Serilog.Log.Warning("Invalid values in sell energy confirmation: energy={Energy}, money={Money}", energySold, moneyReceived);
+            }
         }
 
         private void HandleBuyEnergyConfirmation(string parameters)
         {
-            string energyBought; string moneyToPay;
-            Utils.ParseMessage(parameters, out energyBought, out moneyToPay);
-            this.currentLoadEnergyTotal -= Double.Parse(energyBought);
-            this.currentBill -= Double.Parse(moneyToPay);
+            if (!Utils.TryParseMessage(parameters, out string energyBought, out string moneyToPay))
+            {
+                Serilog.Log.Warning("Failed to parse buy energy confirmation parameters: {Parameters}", parameters);
+                return;
+            }
+
+            if (double.TryParse(energyBought, out double energy) && double.TryParse(moneyToPay, out double money))
+            {
+                this._currentLoadEnergyTotal -= energy;
+                this._currentBill -= money;
+            }
+            else
+            {
+                Serilog.Log.Warning("Invalid values in buy energy confirmation: energy={Energy}, money={Money}", energyBought, moneyToPay);
+            }
         }
 
         private void HandleEnergyMarketPrice(string gridEnergyPrice)
         {
-            this.currentGridBuyPrice = Double.Parse(gridEnergyPrice);
-            this.currentGridSellPrice = this.currentGridBuyPrice*2;
-            // Log.Information($"{this.currentGridBuyPrice} {this.currentGridSellPrice}");
+            if (double.TryParse(gridEnergyPrice, out double price))
+            {
+                this._currentGridBuyPrice = price;
+                this._currentGridSellPrice = this._currentGridBuyPrice * 2;
+            }
+            else
+            {
+                Serilog.Log.Warning("Invalid grid energy price: {Value}", gridEnergyPrice);
+            }
         }
 
         private void HandleSellingPrice(string auctioneer, string auctionEnergyPrice)
         {
-            if (isAuctioning)
+            if (!double.TryParse(auctionEnergyPrice, out double price))
             {
-                double _auctionEnergyPrice = Double.Parse(auctionEnergyPrice);
-                if(_auctionEnergyPrice <= currentGridSellPrice * auctionEnergyPriceVariationFromGrid)
+                Serilog.Log.Warning("Invalid auction energy price: {Value}", auctionEnergyPrice);
+                return;
+            }
+
+            if (_isAuctioning)
+            {
+                if (price <= _currentGridSellPrice * _auctionEnergyPriceVariationFromGrid)
                 {
-                    Send(auctioneer, Utils.Str("energy_bid",auctionEnergyPrice));
-                    isAuctioning = false;
+                    Send(auctioneer, Utils.Str(MessageTypes.EnergyBid, auctionEnergyPrice));
+                    _isAuctioning = false;
                 }
                 else
                 {
-                    Log.Information($"Price not good. {_auctionEnergyPrice} > my price: {currentGridSellPrice * auctionEnergyPriceVariationFromGrid}");
+                    Serilog.Log.Information("Price not good. {AuctionPrice} > my price: {MyPrice}", 
+                        price, _currentGridSellPrice * _auctionEnergyPriceVariationFromGrid);
                 }
-            }
-            else
-            {
-                
             }
         }
     }

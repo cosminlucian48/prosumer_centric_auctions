@@ -1,91 +1,125 @@
-﻿using ActressMas;
+using ActressMas;
+using DissertationProsumerAuctions.Constants;
 using DissertationProsumerAuctions.DatabaseConnections;
 using DissertationProsumerAuctions.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Timers;
 
 namespace DissertationProsumerAuctions.Agents.EnergyMarket
 {
+    /// <summary>
+    /// Agent responsible for managing energy market prices and broadcasting them to prosumers.
+    /// Uses tick-based time management instead of timers.
+    /// </summary>
     internal class EnergyMarketAgent : Agent
     {
-        private System.Timers.Timer _timer;
-        public double currentEnergPrice = 0.0;
-        public int energyMarketPriceAnnouncementInterval = Utils.EnergyPriceNumberOfDelays * Utils.Delay;
-        private Dictionary<string, List<double>> LocalEnergyDifference;
-        private List<String> prosumers = new List<String>();
-        public DateTime lastTimestamp;
+        public double CurrentEnergyPrice { get; private set; } = 0.0;
+        private readonly Dictionary<string, List<double>> _localEnergyDifference = new Dictionary<string, List<double>>();
+        private readonly List<string> _prosumers = new List<string>();
+        public DateTime LastTimestamp { get; private set; }
+        
+        // Tick-based timing: 15 ticks = 15 minutes (database data interval)
+        private int _tickCount = 0;
+        private const int TicksPerPriceUpdate = 15;
 
         public EnergyMarketAgent() : base()
         {
-            _timer = new System.Timers.Timer();
-            _timer.Elapsed += t_Elapsed;
-            _timer.Interval = energyMarketPriceAnnouncementInterval;
-
-            lastTimestamp = new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day, 0, 0, 0);
+            LastTimestamp = new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day, 0, 0, 0);
         }
 
-        private async void t_Elapsed(object sender, ElapsedEventArgs e)
+        private void UpdateProsumerGridEnergyPrice(string prosumer = "")
         {
-            MasLog.InfoDebug(this, "debug", $"t_Elapsed energyMarketPriceAnnouncementInterval {this.energyMarketPriceAnnouncementInterval}");
-            
-            updateProsumerGridEnergyPrice();
-            return;
-        }
-
-        private async void updateProsumerGridEnergyPrice(string prosumer="")
-        {
-            List<EnergyMarketPriceDataModel> results = await DatabaseConnection.Instance.GetEnergyMarketPricesbyTime(lastTimestamp.ToString("hh:mm:ss tt"));
-            EnergyMarketPriceDataModel response = results.FirstOrDefault();
-
-            if (response == null) return;
-            this.currentEnergPrice = response.Price;
-
-            if (prosumer == "")
+            try
             {
-                SendToMany(this.prosumers, Utils.Str("energy_market_price", this.currentEnergPrice));
-            }
-            else
-            {
-                Send(prosumer, Utils.Str("energy_market_price", this.currentEnergPrice));
-            }
+                // Block on async call since Act() must be synchronous
+                List<EnergyMarketPriceDataModel> results = DatabaseConnection.Instance
+                    .GetEnergyMarketPricesbyTime(LastTimestamp.ToString("hh:mm:ss tt"))
+                    .GetAwaiter().GetResult();
+                EnergyMarketPriceDataModel response = results.FirstOrDefault();
 
-            lastTimestamp = lastTimestamp.AddMinutes(15);
+                if (response == null) return;
+                this.CurrentEnergyPrice = response.Price;
+
+                if (string.IsNullOrEmpty(prosumer))
+                {
+                    SendToMany(this._prosumers.ToList(), Utils.Str(MessageTypes.EnergyMarketPrice, this.CurrentEnergyPrice));
+                }
+                else
+                {
+                    Send(prosumer, Utils.Str(MessageTypes.EnergyMarketPrice, this.CurrentEnergyPrice));
+                }
+
+                // LastTimestamp is already set from tick message, no need to add minutes
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Error updating prosumer grid energy price");
+            }
         }
 
         public override void Setup()
         {
             MasLog.Event(this, "message", "Hi - Energy Market Agent started");
-            Broadcast("find_prosumers");
+            Broadcast(MessageTypes.FindProsumers);
         }
 
         public override void Act(Message message)
         {
-            MasLog.Received(this, message, $"[{message.Sender} -> {Name}]: {message.Content}");
-
-            string action; string parameters;
-            Utils.ParseMessage(message.Content, out action, out parameters);
-
-            switch (action)
+            try
             {
-                case "started":
-                    break;
-                case "prosumer_start":
-                    HandleProsumerStart(message.Sender);
-                    break;
-                default:
-                    break;
+                MasLog.Received(this, message, $"[{message.Sender} -> {Name}]: {message.Content}");
+
+                if (!Utils.TryParseMessage(message.Content, out string action, out string parameters))
+                {
+                    MasLog.Event(this, "error", $"Failed to parse message: {message.Content}");
+                    return;
+                }
+
+                switch (action)
+                {
+                    case MessageTypes.Started:
+                        break;
+                    case MessageTypes.ProsumerStart:
+                        HandleProsumerStart(message.Sender);
+                        break;
+                    case MessageTypes.Tick:
+                        HandleTick(parameters);
+                        break;
+                    default:
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Error processing message in EnergyMarketAgent {AgentName}: {Message}", Name, message?.Content);
             }
         }
 
         private void HandleProsumerStart(string prosumerName)
         {
-            this.prosumers.Add(prosumerName);
-            updateProsumerGridEnergyPrice(prosumerName);
-            _timer.Start();
+            this._prosumers.Add(prosumerName);
+            // Send initial price to new prosumer
+            UpdateProsumerGridEnergyPrice(prosumerName);
+        }
+
+        private void HandleTick(string parameters)
+        {
+            if (!Utils.TryParseTickMessage(parameters, out int tickIndex, out DateTime simulationTime))
+            {
+                Serilog.Log.Warning("Failed to parse tick message in EnergyMarketAgent: {Parameters}", parameters);
+                return;
+            }
+
+            _tickCount++;
+            
+            // Update price every 15 ticks (15 minutes = database data interval)
+            if (_tickCount % TicksPerPriceUpdate == 0)
+            {
+                LastTimestamp = simulationTime;
+                MasLog.InfoDebug(this, "debug", $"Tick {tickIndex}: Updating energy market price (every {TicksPerPriceUpdate} ticks)");
+                UpdateProsumerGridEnergyPrice();
+            }
         }
     }
 }

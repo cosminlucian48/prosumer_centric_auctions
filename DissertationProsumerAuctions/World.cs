@@ -1,10 +1,8 @@
-﻿using ActressMas;
+using ActressMas;
 using DissertationProsumerAuctions.Agents.Prosumer;
+using DissertationProsumerAuctions.Agents.Support;
+using DissertationProsumerAuctions.Constants;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using DissertationProsumerAuctions.Agents.EnergyMarket;
 using DissertationProsumerAuctions.Agents.Prosumer.Components;
 
@@ -16,10 +14,10 @@ namespace DissertationProsumerAuctions
             : base(numberOfTurns, delayAfterTurn, randomOrder, rand, parallel)
         {
             var energyMarketAgent = new EnergyMarketAgent();
-            Add(energyMarketAgent, "energymarket1");
+            Add(energyMarketAgent, AgentNames.EnergyMarket);
             
             var tickAgent = new TickAgent();
-            Add(tickAgent, "tick");
+            Add(tickAgent, AgentNames.Tick);
         }
         public void AddProsumer(Agent prosumer, string prosumerName)
         {
@@ -28,9 +26,9 @@ namespace DissertationProsumerAuctions
             var batteryAgent = new ProsumerBatteryAgent(prosumerName);
             var generatorAgent = new ProsumerGeneratorAgent(prosumerName);
             var loadAgent = new ProsumerLoadAgent(prosumerName);
-            base.Add(batteryAgent, string.Format("battery{0}", prosumerName));
-            base.Add(generatorAgent, string.Format("generator{0}", prosumerName));
-            base.Add(loadAgent, string.Format("load{0}", prosumerName));
+            base.Add(batteryAgent, AgentNames.GetBatteryName(prosumerName));
+            base.Add(generatorAgent, AgentNames.GetGeneratorName(prosumerName));
+            base.Add(loadAgent, AgentNames.GetLoadName(prosumerName));
         }
 
         public void Add(Agent agent, string agentName)

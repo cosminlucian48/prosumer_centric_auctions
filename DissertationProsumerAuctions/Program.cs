@@ -1,16 +1,28 @@
-﻿using System;
+using System;
+using System.IO;
 using ActressMas;
 using DissertationProsumerAuctions;
 using DissertationProsumerAuctions.Agents.Auctions.DutchAuctioneer;
 using DissertationProsumerAuctions.Agents.EnergyMarket;
 using DissertationProsumerAuctions.Agents.Prosumer;
-using Microsoft.AspNetCore.Builder;
+using DissertationProsumerAuctions.Services;
+using Microsoft.Extensions.Configuration;
 using Serilog;
 
 class Program
 {
     private static void Main(string[] args)
     {
+        // Build configuration from appsettings.json
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory())
+            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+            .Build();
+
+        // Initialize configuration service
+        var configService = new ConfigurationService(configuration);
+        Utils.InitializeConfiguration(configService);
+
         Log.Logger = new LoggerConfiguration()
             .Enrich.FromLogContext()
             .WriteTo.Console()             // still see logs in terminal

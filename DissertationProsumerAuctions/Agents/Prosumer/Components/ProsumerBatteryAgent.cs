@@ -1,4 +1,5 @@
-﻿using ActressMas;
+using ActressMas;
+using DissertationProsumerAuctions.Constants;
 
 namespace DissertationProsumerAuctions.Agents.Prosumer.Components
 {
@@ -29,36 +30,52 @@ namespace DissertationProsumerAuctions.Agents.Prosumer.Components
         public override void Setup()
         {
             MasLog.Event(this, "message", "Hi - Prosumer battery started!");
-            Send(_myProsumerName, "component_ready");
+            Send(_myProsumerName, MessageTypes.ComponentReady);
         }
 
         public override void Act(Message message)
         {
-            MasLog.Received(this, message, $"[{message.Sender} -> {Name}]: {message.Content}");
-
-            Utils.ParseMessage(message.Content, out var action, out var parameters);
-
-            switch (action)
+            try
             {
-                case "prosumer_start":
+                MasLog.Received(this, message, $"[{message.Sender} -> {Name}]: {message.Content}");
+
+                if (!Utils.TryParseMessage(message.Content, out var action, out var parameters))
+                {
+                    MasLog.Event(this, "error", $"Failed to parse message: {message.Content}");
+                    return;
+                }
+
+                switch (action)
+            {
+                case MessageTypes.ProsumerStart:
                     HandleProsumerStart();
                     break;
-                case "store":
+                case MessageTypes.StoreEnergy:
                     HandleStoreEnergy(parameters);
                     break;
-                case "tick":
+                case MessageTypes.Tick:
                     HandleTick(parameters);
                     break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Error processing message in ProsumerBatteryAgent {AgentName}: {Message}", Name, message?.Content);
             }
         }
 
         private void HandleStoreEnergy(string parameters)
         {
-            var energyToStore = double.Parse(parameters);
+            if (!double.TryParse(parameters, out double energyToStore))
+            {
+                Serilog.Log.Warning("Invalid energy to store value: {Value}", parameters);
+                return;
+            }
+
             if (_currentCapacity + energyToStore < _maximumCapacity)
             {
                 _currentCapacity += energyToStore;
-                Send(_myProsumerName, Utils.Str("energy_stored", energyToStore));
+                Send(_myProsumerName, Utils.Str(MessageTypes.EnergyStored, energyToStore));
             }
             else
             {
@@ -68,7 +85,7 @@ namespace DissertationProsumerAuctions.Agents.Prosumer.Components
                     capacityDifference = _maximumCapacity - _currentCapacity;
                     _currentCapacity += capacityDifference;
                 }
-                Send(_myProsumerName, Utils.Str("battery_maximum_capacity", capacityDifference));
+                Send(_myProsumerName, Utils.Str(MessageTypes.BatteryMaximumCapacity, capacityDifference));
             }
         }
 

@@ -1,5 +1,7 @@
-﻿using ActressMas;
+using ActressMas;
+using DissertationProsumerAuctions.Constants;
 using DissertationProsumerAuctions.DatabaseConnections;
+using System.Linq;
 
 namespace DissertationProsumerAuctions.Agents.Prosumer.Components
 {
@@ -21,58 +23,78 @@ namespace DissertationProsumerAuctions.Agents.Prosumer.Components
         public override void Setup()
         {
             MasLog.Event(this, "message", "Hi - Prosumer Generator started!");
-            Send(_myProsumerName, "component_ready");
+            Send(_myProsumerName, MessageTypes.ComponentReady);
         }
 
 
-        private Task UpdateProsumerGenerationRate()
+        private void UpdateProsumerGenerationRate()
         {
-            return Task.Run(async () =>
+            try
             {
-                try
-                {
-                    var results = await DatabaseConnection.Instance
-                        .GetProsumerGenerationByIdAsync(_myProsumerId, _currentTimestamp);
-                    var response = results.FirstOrDefault();
+                // Block on async call since Act() must be synchronous
+                var results = DatabaseConnection.Instance
+                    .GetProsumerGenerationByIdAsync(_myProsumerId, _currentTimestamp)
+                    .GetAwaiter().GetResult();
+                var response = results.FirstOrDefault();
 
-                    if (response == null) return;
-                    Send(_myProsumerName, Utils.Str("generation_update", response.GenerationRate));
-                }
-                catch (Exception ex)
-                {
-                    MasLog.Event(this, "error", ex.Message);
-                }
-            });
+                if (response == null) return;
+                Send(_myProsumerName, Utils.Str(MessageTypes.GenerationUpdate, response.GenerationRate));
+            }
+            catch (Exception ex)
+            {
+                MasLog.Event(this, "error", ex.Message);
+            }
         }
 
         public override void Act(Message message)
         {
-            MasLog.Received(this, message, $"[{message.Sender} -> {Name}]: {message.Content}");
-
-            Utils.ParseMessage(message.Content, out var action, out var parameters);
-
-            switch (action)
+            try
             {
-                case "prosumer_start":
+                MasLog.Received(this, message, $"[{message.Sender} -> {Name}]: {message.Content}");
+
+                if (!Utils.TryParseMessage(message.Content, out var action, out var parameters))
+                {
+                    MasLog.Event(this, "error", $"Failed to parse message: {message.Content}");
+                    return;
+                }
+
+                switch (action)
+            {
+                case MessageTypes.ProsumerStart:
                     HandleProsumerStart();
                     break;
-                case "tick":
+                case MessageTypes.Tick:
                     HandleTick(parameters);
                     break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Error processing message in ProsumerGeneratorAgent {AgentName}: {Message}", Name, message?.Content);
             }
         }
 
         private void HandleProsumerStart()
         {
-            _ = UpdateProsumerGenerationRate();
+            UpdateProsumerGenerationRate();
         }
         
         private void HandleTick(string parameters)
         {
-            Utils.ParseMessage(parameters, out var tickIndex, out var receivedTimestamp);
-            _currentTimestamp = receivedTimestamp;
-            _currentTickIndex = Int32.Parse(tickIndex);
-            _ = UpdateProsumerGenerationRate();
+            if (!Utils.TryParseTickMessage(parameters, out int tickIndex, out DateTime simulationTime))
+            {
+                Serilog.Log.Warning("Failed to parse tick parameters: {Parameters}", parameters);
+                return;
+            }
+
+            _currentTickIndex = tickIndex;
+            
+            // Only query database every 15 ticks (15 minutes = database data interval)
+            if (tickIndex % 15 == 0)
+            {
+                _currentTimestamp = simulationTime.ToString("hh:mm:ss tt");
+                UpdateProsumerGenerationRate();
+            }
         }
     }
 }

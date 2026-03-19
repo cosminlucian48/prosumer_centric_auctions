@@ -1,5 +1,7 @@
-﻿using ActressMas;
+using ActressMas;
+using DissertationProsumerAuctions.Constants;
 using DissertationProsumerAuctions.DatabaseConnections;
+using System.Linq;
 
 namespace DissertationProsumerAuctions.Agents.Prosumer.Components
 {
@@ -20,59 +22,79 @@ namespace DissertationProsumerAuctions.Agents.Prosumer.Components
         public override void Setup()
         {
             MasLog.Event(this, "message", "Hi - Prosumer Load started!");
-            Send(_myProsumerName, "component_ready");
+            Send(_myProsumerName, MessageTypes.ComponentReady);
         }
 
-        private Task UpdateProsumerLoadRate() // impossible with void
+        private void UpdateProsumerLoadRate()
         {
-            return Task.Run(async () =>
+            try
             {
-                try
-                {
-                    var results = await DatabaseConnection.Instance
-                        .GetProsumerLoadByIdAsync(_myProsumerId, _currentTimestamp);
+                // Block on async call since Act() must be synchronous
+                var results = DatabaseConnection.Instance
+                    .GetProsumerLoadByIdAsync(_myProsumerId, _currentTimestamp)
+                    .GetAwaiter().GetResult();
 
-                    var response = results.FirstOrDefault();
-                    if (response == null) return;
+                var response = results.FirstOrDefault();
+                if (response == null) return;
 
-                    Send(_myProsumerName, Utils.Str("load_update", response.Load));
-                }
-                catch (Exception ex)
-                {
-                    MasLog.Event(this, "error", ex.Message);
-                }
-            });
+                Send(_myProsumerName, Utils.Str(MessageTypes.LoadUpdate, response.Load));
+            }
+            catch (Exception ex)
+            {
+                MasLog.Event(this, "error", ex.Message);
+            }
         }
 
 
         public override void Act(Message message)
         {
-            MasLog.Received(this, message, $"[{message.Sender} -> {Name}]: {message.Content}");
-
-            Utils.ParseMessage(message.Content, out var action, out var parameters);
-
-            switch (action)
+            try
             {
-                case "prosumer_start":
+                MasLog.Received(this, message, $"[{message.Sender} -> {Name}]: {message.Content}");
+
+                if (!Utils.TryParseMessage(message.Content, out var action, out var parameters))
+                {
+                    MasLog.Event(this, "error", $"Failed to parse message: {message.Content}");
+                    return;
+                }
+
+                switch (action)
+            {
+                case MessageTypes.ProsumerStart:
                     HandleProsumerStart();
                     break;
-                case "tick":
+                case MessageTypes.Tick:
                     HandleTick(parameters);
                     break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Error processing message in ProsumerLoadAgent {AgentName}: {Message}", Name, message?.Content);
             }
         }
 
         private void HandleProsumerStart()
         {
-            _ = UpdateProsumerLoadRate();
+            UpdateProsumerLoadRate();
         }
         
         private void HandleTick(string parameters)
         {
-            Utils.ParseMessage(parameters, out var tickIndex, out var receivedTimestamp);
-            _currentTimestamp = receivedTimestamp;
-            _currentTickIndex = Int32.Parse(tickIndex);
-            _ = UpdateProsumerLoadRate();
+            if (!Utils.TryParseTickMessage(parameters, out int tickIndex, out DateTime simulationTime))
+            {
+                Serilog.Log.Warning("Failed to parse tick parameters: {Parameters}", parameters);
+                return;
+            }
+
+            _currentTickIndex = tickIndex;
+            
+            // Only query database every 15 ticks (15 minutes = database data interval)
+            if (tickIndex % 15 == 0)
+            {
+                _currentTimestamp = simulationTime.ToString("hh:mm:ss tt");
+                UpdateProsumerLoadRate();
+            }
         }
     }
 }
