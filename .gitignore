@@ -226,9 +226,3 @@ _ReSharper.*/
 # obj/
 # bin/
 # packages/
-
-# Local generated artifacts
-/DissertationProsumerAuctions/
-*.db-shm
-*.db-wal
-*.db-journal
