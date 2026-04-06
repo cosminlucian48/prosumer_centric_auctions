@@ -18,8 +18,10 @@ namespace ProsumerAuctionPlatform.Constants
         public const string GenerationUpdate = "generation_update";
         public const string BatterySOC = "battery_soc";
         public const string EnergyStored = "energy_stored";
+        public const string EnergyConsumed = "energy_consumed";
         public const string BatteryMaximumCapacity = "battery_maximum_capacity";
         public const string StoreEnergy = "store";
+        public const string ConsumeEnergy = "consume";
         public const string SellEnergy = "sell_energy";
         
         // Market

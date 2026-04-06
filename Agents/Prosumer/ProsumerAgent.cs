@@ -13,7 +13,11 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
         private double _currentLoadEnergyTotal;
         private double _currentGeneratedEnergyTotal;
         private double _currentBatteryStorageCapacity;
-        private double _energyInTransit;
+        // Energy settlement state for the basic battery/grid mode.
+        private double _pendingSurplusEnergy;
+        private double _pendingDeficitEnergy;
+        private double _outstandingStoreRequest;
+        private double _outstandingConsumeRequest;
 
         private double _currentGridBuyPrice;
         private double _currentGridSellPrice;
@@ -23,11 +27,14 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
         private bool _flagMessageFromLoadAgent = false;
         private bool _flagMessageFromGeneratorAgent = false;
 
+        // TODO: Re-enable this auction preference when the Dutch auction flow is wired back into the world.
         private double _auctionEnergyPriceVariationFromGrid;
 
+        // TODO: Reuse this state flag when auction participation is restored.
         private bool _isAuctioning = false;
 
         private readonly Dictionary<string, bool> _prosumerSetupReadiness = new Dictionary<string, bool>();
+        private bool _hasStartedProsumerComponents;
 
         public ProsumerAgent() : base() { }
         public override void Setup()
@@ -43,12 +50,13 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
                     Serilog.Log.Warning("Invalid prosumer name format: {Name}", this.Name);
                 }
                 MasLog.Event(this, "message", "Hi - Prosumer Agent started!");
-            _prosumerSetupReadiness[AgentNames.GetLoadName(this.Name)] = false;
-            _prosumerSetupReadiness[AgentNames.GetGeneratorName(this.Name)] = false;
-            _prosumerSetupReadiness[AgentNames.GetBatteryName(this.Name)] = false;
-            _prosumerSetupReadiness[AgentNames.EnergyMarket] = false;
-            
-            _auctionEnergyPriceVariationFromGrid = Utils.RandNoGen.NextDouble() * (1.2 - 0.8) + 0.8;
+                _prosumerSetupReadiness[AgentNames.GetLoadName(this.Name)] = false;
+                _prosumerSetupReadiness[AgentNames.GetGeneratorName(this.Name)] = false;
+                _prosumerSetupReadiness[AgentNames.GetBatteryName(this.Name)] = false;
+                _prosumerSetupReadiness[AgentNames.EnergyMarket] = false;
+
+                // TODO: This is currently retained for future auction bidding logic.
+                _auctionEnergyPriceVariationFromGrid = Utils.RandNoGen.NextDouble() * (1.2 - 0.8) + 0.8;
             }
             catch (Exception ex)
             {
@@ -62,7 +70,10 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             try
             {
                 MasLog.Received(this, message, $"[{message.Sender} -> {Name}]: {message.Content}");
-                MasLog.InfoDebug(this, "debug", $"Energy in transit {this._energyInTransit}; current bill { this._currentBill}");
+                MasLog.InfoDebug(
+                    this,
+                    "debug",
+                    $"Pending surplus {_pendingSurplusEnergy}; pending deficit {_pendingDeficitEnergy}; bill {this._currentBill}");
 
                 if (!Utils.TryParseMessage(message.Content, out string action, out string parameters))
                 {
@@ -71,31 +82,48 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
                 }
 
                 switch (action)
-            {
-                case MessageTypes.Tick: break;
-                case MessageTypes.ComponentReady: break;
-                case MessageTypes.FindProsumers:
-                    HandleProsumerComponentSetup(message.Sender, action); break;
-                case MessageTypes.BatterySOC:
-                    HandleBatterySOC(parameters); break;
-                case MessageTypes.LoadUpdate:
-                    HandleLoadUpdate(parameters); break;
-                case MessageTypes.GenerationUpdate:
-                    HandleGenerationUpdate(parameters); break;
-                case MessageTypes.EnergyStored:
-                    HandleEnergyStored(parameters); break;
-                case MessageTypes.BatteryMaximumCapacity:
-                    HandleBatteryAtMaximumCapacity(parameters); break;
-                case MessageTypes.SellEnergyConfirmation:
-                    HandleSellEnergyConfirmation(parameters); break;
-                case MessageTypes.BuyEnergyConfirmation:
-                    HandleBuyEnergyConfirmation(parameters); break;
-                case MessageTypes.EnergyMarketPrice:
-                    HandleEnergyMarketPrice(parameters); break;
-                case MessageTypes.StartAuctioning:
-                    HandleStartAuctioning();  break;
-                case MessageTypes.SellingPrice:
-                    HandleSellingPrice(message.Sender, parameters); break;
+                {
+                    case MessageTypes.Tick:
+                        break;
+                    case MessageTypes.ComponentReady:
+                        HandleDependencyReady(message.Sender);
+                        break;
+                    case MessageTypes.FindProsumers:
+                        HandleDependencyReady(message.Sender);
+                        break;
+                    case MessageTypes.BatterySOC:
+                        HandleBatterySOC(parameters);
+                        break;
+                    case MessageTypes.LoadUpdate:
+                        HandleLoadUpdate(parameters);
+                        break;
+                    case MessageTypes.GenerationUpdate:
+                        HandleGenerationUpdate(parameters);
+                        break;
+                    case MessageTypes.EnergyStored:
+                        HandleEnergyStored(parameters);
+                        break;
+                    case MessageTypes.EnergyConsumed:
+                        HandleEnergyConsumed(parameters);
+                        break;
+                    case MessageTypes.BatteryMaximumCapacity:
+                        HandleBatteryAtMaximumCapacity(parameters);
+                        break;
+                    case MessageTypes.SellEnergyConfirmation:
+                        HandleSellEnergyConfirmation(parameters);
+                        break;
+                    case MessageTypes.BuyEnergyConfirmation:
+                        HandleBuyEnergyConfirmation(parameters);
+                        break;
+                    case MessageTypes.EnergyMarketPrice:
+                        HandleEnergyMarketPrice(parameters);
+                        break;
+                    case MessageTypes.StartAuctioning:
+                        HandleStartAuctioning();
+                        break;
+                    case MessageTypes.SellingPrice:
+                        HandleSellingPrice(message.Sender, parameters);
+                        break;
                 }
             }
             catch (Exception ex)
@@ -104,19 +132,27 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             }
         }
 
-        private void HandleProsumerComponentSetup(string sender, string action)
+        private void HandleDependencyReady(string sender)
         {
             if (_prosumerSetupReadiness.ContainsKey(sender))
             {
                 _prosumerSetupReadiness[sender] = true;
             }
+
+            if (_hasStartedProsumerComponents)
+            {
+                return;
+            }
+
+            // Startup currently depends on the three component agents plus the energy market
+            // publishing its discovery message. Keep this gate explicit until startup is refactored.
             bool allComponentsAreReady = _prosumerSetupReadiness.Values.All(componentIsReady => componentIsReady);
 
             if (allComponentsAreReady)
             {
+                _hasStartedProsumerComponents = true;
                 SendToMany(_prosumerSetupReadiness.Keys.ToList(), MessageTypes.ProsumerStart);
             }
-            
         }
 
         private void HandleBatterySOC(string currentBatteryStorageCapacity)
@@ -165,44 +201,61 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
 
         private void HandleEnergyConsume()
         {
-            if (this._currentGeneratedEnergyTotal - this._currentLoadEnergyTotal != 0)
+            double netEnergy = this._currentGeneratedEnergyTotal - this._currentLoadEnergyTotal;
+
+            if (Math.Abs(netEnergy) > double.Epsilon)
             {
                 Send(this.Name, MessageTypes.StartAuctioning);
             }
             else
             {
-                this._currentGeneratedEnergyTotal = 0.0;
-                this._currentLoadEnergyTotal = 0.0;
+                ResetEnergyWindow();
             }
         }
 
         private void HandleStartAuctioning()
         {
+            // TODO(tech-debt): Restore the auction branch here after DutchAuctioneer is added back to the world.
+            // Historical auction behavior intentionally kept below as comments for future reactivation.
+            _isAuctioning = false;
+
             if (this._currentGeneratedEnergyTotal > this._currentLoadEnergyTotal)
             {
                 double excessEnergy = this._currentGeneratedEnergyTotal - this._currentLoadEnergyTotal;
-                this._energyInTransit += excessEnergy;
-                double floorPrice = this._currentGridSellPrice * 0.8;
-                double startingPrice = this._currentGridSellPrice * 1.2;
+                _pendingSurplusEnergy += excessEnergy;
 
-                this._isAuctioning = true;
-                Send(AgentNames.DutchAuctioneer, Utils.Str(MessageTypes.ExcessToSell, excessEnergy, floorPrice, startingPrice)); // command + energy units + floor price
+                // Auction path kept for reference:
+                // double floorPrice = this._currentGridSellPrice * 0.8;
+                // double startingPrice = this._currentGridSellPrice * 1.2;
+                // this._isAuctioning = true;
+                // Send(AgentNames.DutchAuctioneer,
+                //     Utils.Str(MessageTypes.ExcessToSell, excessEnergy, floorPrice, startingPrice));
+
+                // Basic-mode fallback: try local storage first, then settle overflow against the grid.
+                TryStorePendingSurplus();
             }
             else if (this._currentGeneratedEnergyTotal < this._currentLoadEnergyTotal)
             {
                 double energyDeficit = this._currentLoadEnergyTotal - this._currentGeneratedEnergyTotal;
-                this._energyInTransit -= energyDeficit;
 
-                this._isAuctioning = true;
-                Send(AgentNames.DutchAuctioneer, Utils.Str(MessageTypes.DeficitToBuy, energyDeficit)); // command + energy units + ceiling price
+                // Auction path kept for reference:
+                // this._isAuctioning = true;
+                // Send(AgentNames.DutchAuctioneer, Utils.Str(MessageTypes.DeficitToBuy, energyDeficit));
+
+                // Basic-mode fallback: try discharging battery first, then buy remaining deficit from the grid.
+                _pendingDeficitEnergy += energyDeficit;
+                TryCoverPendingDeficit();
             }
+
+            ResetEnergyWindow();
         }
 
         private void HandleEnergyStored(string energyTriedToStore)
         {
             if (double.TryParse(energyTriedToStore, out double energyStored))
             {
-                this._energyInTransit -= energyStored;
+                _pendingSurplusEnergy = Math.Max(0, _pendingSurplusEnergy - energyStored);
+                _outstandingStoreRequest = Math.Max(0, _outstandingStoreRequest - energyStored);
             }
             else
             {
@@ -210,13 +263,46 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             }
         }
 
+        private void HandleEnergyConsumed(string consumedEnergyValue)
+        {
+            if (!double.TryParse(consumedEnergyValue, out double consumedEnergy))
+            {
+                Serilog.Log.Warning("Invalid energy consumed value: {Value}", consumedEnergyValue);
+                return;
+            }
+
+            if (_pendingDeficitEnergy <= 0)
+            {
+                return;
+            }
+
+            _pendingDeficitEnergy = Math.Max(0, _pendingDeficitEnergy - consumedEnergy);
+            _outstandingConsumeRequest = Math.Max(0, _outstandingConsumeRequest - consumedEnergy);
+
+            // If battery could not satisfy the requested amount, buy the remainder from grid.
+            if (_outstandingConsumeRequest > 0)
+            {
+                BuyEnergyFromGrid(_outstandingConsumeRequest);
+                _pendingDeficitEnergy = Math.Max(0, _pendingDeficitEnergy - _outstandingConsumeRequest);
+                _outstandingConsumeRequest = 0;
+            }
+
+            TryCoverPendingDeficit();
+        }
+
         private void HandleBatteryAtMaximumCapacity(string capacityDifference)
         {
-            if (double.TryParse(capacityDifference, out double storedEnergy))
+            if (double.TryParse(capacityDifference, out double overflowEnergy))
             {
-                this._energyInTransit -= storedEnergy;
-                // TODO: Replace with proper VPP agent when implemented
-                Send(AgentNames.VPP, Utils.Str(MessageTypes.SellEnergy, this._energyInTransit));
+                if (overflowEnergy > 0)
+                {
+                    // TODO: Replace this direct grid settlement with the intended VPP or auction route.
+                    SellEnergyToGrid(overflowEnergy);
+                    _pendingSurplusEnergy = Math.Max(0, _pendingSurplusEnergy - overflowEnergy);
+                    _outstandingStoreRequest = Math.Max(0, _outstandingStoreRequest - overflowEnergy);
+                }
+
+                TryStorePendingSurplus();
             }
             else
             {
@@ -235,7 +321,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             if (double.TryParse(moneyReceived, out double money) && double.TryParse(energySold, out double energy))
             {
                 this._currentBill += money;
-                this._energyInTransit -= energy;
+                _pendingSurplusEnergy = Math.Max(0, _pendingSurplusEnergy - energy);
             }
             else
             {
@@ -255,6 +341,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             {
                 this._currentLoadEnergyTotal -= energy;
                 this._currentBill -= money;
+                _pendingDeficitEnergy = Math.Max(0, _pendingDeficitEnergy - energy);
             }
             else
             {
@@ -277,25 +364,73 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
 
         private void HandleSellingPrice(string auctioneer, string auctionEnergyPrice)
         {
-            if (!double.TryParse(auctionEnergyPrice, out double price))
+            double targetAuctionBidPrice = _currentGridSellPrice * _auctionEnergyPriceVariationFromGrid;
+
+            Serilog.Log.Information(
+                "Ignoring selling price message from {Auctioneer} while prosumer is running in basic battery/grid mode: {Price}. Auction state retained for later reactivation. Target bid threshold would be {TargetAuctionBidPrice}.",
+                auctioneer,
+                auctionEnergyPrice,
+                targetAuctionBidPrice);
+
+            // TODO: Restore the previous bid acceptance logic once the auctioneer is active again.
+            _isAuctioning = false;
+        }
+
+        private void BuyEnergyFromGrid(double energyDeficit)
+        {
+            // TODO: Move this to a dedicated grid/VPP integration once market settlement is modeled explicitly.
+            this._currentBill -= energyDeficit * this._currentGridBuyPrice;
+        }
+
+        private void SellEnergyToGrid(double excessEnergy)
+        {
+            // TODO: Move this to a dedicated grid/VPP integration once export settlement is modeled explicitly.
+            this._currentBill += excessEnergy * this._currentGridSellPrice;
+        }
+
+        private void ResetEnergyWindow()
+        {
+            this._currentGeneratedEnergyTotal = 0.0;
+            this._currentLoadEnergyTotal = 0.0;
+        }
+
+        private void TryStorePendingSurplus()
+        {
+            if (_outstandingStoreRequest > 0)
             {
-                Serilog.Log.Warning("Invalid auction energy price: {Value}", auctionEnergyPrice);
                 return;
             }
 
-            if (_isAuctioning)
+            if (_pendingSurplusEnergy <= double.Epsilon)
             {
-                if (price <= _currentGridSellPrice * _auctionEnergyPriceVariationFromGrid)
-                {
-                    Send(auctioneer, Utils.Str(MessageTypes.EnergyBid, auctionEnergyPrice));
-                    _isAuctioning = false;
-                }
-                else
-                {
-                    Serilog.Log.Information("Price not good. {AuctionPrice} > my price: {MyPrice}", 
-                        price, _currentGridSellPrice * _auctionEnergyPriceVariationFromGrid);
-                }
+                return;
             }
+
+            _outstandingStoreRequest = _pendingSurplusEnergy;
+            Send(AgentNames.GetBatteryName(this.Name), Utils.Str(MessageTypes.StoreEnergy, _outstandingStoreRequest));
+        }
+
+        private void TryCoverPendingDeficit()
+        {
+            if (_outstandingConsumeRequest > 0)
+            {
+                return;
+            }
+
+            if (_pendingDeficitEnergy <= double.Epsilon)
+            {
+                return;
+            }
+
+            if (_currentBatteryStorageCapacity <= double.Epsilon)
+            {
+                BuyEnergyFromGrid(_pendingDeficitEnergy);
+                _pendingDeficitEnergy = 0;
+                return;
+            }
+
+            _outstandingConsumeRequest = _pendingDeficitEnergy;
+            Send(AgentNames.GetBatteryName(this.Name), Utils.Str(MessageTypes.ConsumeEnergy, _outstandingConsumeRequest));
         }
     }
 }

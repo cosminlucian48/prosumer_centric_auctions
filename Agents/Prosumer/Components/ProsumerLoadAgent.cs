@@ -11,7 +11,8 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
         private readonly string _myProsumerName;
         private readonly int _myProsumerId;
         private string _currentTimestamp;
-        private int _currentTickIndex;
+        private bool _hasReceivedFirstTick;
+        private bool _hasSentInitialReading;
         
         public ProsumerLoadAgent(string prosumerName)
         {
@@ -76,7 +77,14 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
 
         private void HandleProsumerStart()
         {
+            // If tick 0 already arrived, avoid duplicate startup read.
+            if (_hasReceivedFirstTick)
+            {
+                return;
+            }
+
             UpdateProsumerLoadRate();
+            _hasSentInitialReading = true;
         }
         
         private void HandleTick(string parameters)
@@ -87,11 +95,17 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
                 return;
             }
 
-            _currentTickIndex = tickIndex;
+            _hasReceivedFirstTick = true;
             
             // Only query database every 15 ticks (15 minutes = database data interval)
             if (tickIndex % 15 == 0)
             {
+                // If startup already sent the first data point, skip the tick 0 duplicate.
+                if (tickIndex == 0 && _hasSentInitialReading)
+                {
+                    return;
+                }
+
                 _currentTimestamp = simulationTime.ToString("hh:mm:ss tt");
                 UpdateProsumerLoadRate();
             }

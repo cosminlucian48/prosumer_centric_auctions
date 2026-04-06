@@ -12,6 +12,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
         private readonly int _dischargingEfficiency;
         private readonly int _batterySOCNotificationInterval;
         private readonly int _myProsumerId;
+        private const double InitialStateOfChargePercent = 0.5;
         // private Dictionary<string, List<double>> _localEnergyDifference;
 
         public ProsumerBatteryAgent(string prosumerName)
@@ -23,13 +24,13 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
             _chargingEfficiency = 1;
             _dischargingEfficiency = 1;
             _batterySOCNotificationInterval = 1 * Utils.Delay;
-            _maximumCapacity = 15.0;
-            _currentCapacity = _maximumCapacity;
+            // Start at 50% SOC to avoid immediate overflow exports and allow both charge/discharge flows.
+            _currentCapacity = _maximumCapacity * InitialStateOfChargePercent;
         }
 
         public override void Setup()
         {
-            MasLog.Event(this, "message", "Hi - Prosumer battery started!");
+            MasLog.Event(this, "message", "Hi - Prosumer Battery started!");
             Send(_myProsumerName, MessageTypes.ComponentReady);
         }
 
@@ -53,6 +54,9 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
                 case MessageTypes.StoreEnergy:
                     HandleStoreEnergy(parameters);
                     break;
+                case MessageTypes.ConsumeEnergy:
+                    HandleConsumeEnergy(parameters);
+                    break;
                 case MessageTypes.Tick:
                     HandleTick(parameters);
                     break;
@@ -72,31 +76,62 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
                 return;
             }
 
-            if (_currentCapacity + energyToStore < _maximumCapacity)
+            if (energyToStore <= 0)
             {
-                _currentCapacity += energyToStore;
-                Send(_myProsumerName, Utils.Str(MessageTypes.EnergyStored, energyToStore));
+                return;
             }
-            else
+
+            double availableCapacity = _maximumCapacity - _currentCapacity;
+            double storedEnergy = Math.Min(availableCapacity, energyToStore);
+
+            if (storedEnergy > 0)
             {
-                var capacityDifference = 0.0;
-                if (_currentCapacity < _maximumCapacity)
-                {
-                    capacityDifference = _maximumCapacity - _currentCapacity;
-                    _currentCapacity += capacityDifference;
-                }
-                Send(_myProsumerName, Utils.Str(MessageTypes.BatteryMaximumCapacity, capacityDifference));
+                _currentCapacity += storedEnergy;
+                Send(_myProsumerName, Utils.Str(MessageTypes.EnergyStored, storedEnergy));
+                SendBatterySocUpdate();
+            }
+
+            double remainingEnergy = energyToStore - storedEnergy;
+            if (remainingEnergy > 0)
+            {
+                Send(_myProsumerName, Utils.Str(MessageTypes.BatteryMaximumCapacity, remainingEnergy));
             }
         }
 
         private void HandleProsumerStart()
         {
-            // nothing to do yet
+            SendBatterySocUpdate();
+        }
+
+        private void HandleConsumeEnergy(string parameters)
+        {
+            if (!double.TryParse(parameters, out double energyToConsume))
+            {
+                Serilog.Log.Warning("Invalid energy to consume value: {Value}", parameters);
+                return;
+            }
+
+            if (energyToConsume <= 0)
+            {
+                Send(_myProsumerName, Utils.Str(MessageTypes.EnergyConsumed, 0));
+                return;
+            }
+
+            double energyConsumed = Math.Min(_currentCapacity, energyToConsume);
+            _currentCapacity -= energyConsumed;
+
+            Send(_myProsumerName, Utils.Str(MessageTypes.EnergyConsumed, energyConsumed));
+            SendBatterySocUpdate();
         }
 
         private void HandleTick(string parameters)
         {
             // nothing to do yet
+        }
+
+        private void SendBatterySocUpdate()
+        {
+            Send(_myProsumerName, Utils.Str(MessageTypes.BatterySOC, _currentCapacity));
         }
     }
 }
