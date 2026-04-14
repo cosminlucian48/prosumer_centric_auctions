@@ -202,6 +202,14 @@ orleans.codegen.cs
 # Rider project files
 .idea/
 
+# Local environment and developer configuration
+.env
+!.env.example
+appsettings.Development.json
+appsettings.Docker.json
+appsettings.*.json
+!appsettings.json
+
 # Visual Studio Code
 .vscode/
 .vs/

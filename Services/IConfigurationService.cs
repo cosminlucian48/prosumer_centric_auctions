@@ -34,5 +34,20 @@ namespace ProsumerAuctionPlatform.Services
         /// Gets the delay value in milliseconds.
         /// </summary>
         int Delay { get; }
+
+        /// <summary>
+        /// Gets the Seq endpoint URL for structured logs.
+        /// </summary>
+        string SeqUrl { get; }
+
+        /// <summary>
+        /// Gets the SQLite database path.
+        /// </summary>
+        string DbPath { get; }
+
+        /// <summary>
+        /// Validates required configuration and throws clear startup errors.
+        /// </summary>
+        void Validate();
     }
 }

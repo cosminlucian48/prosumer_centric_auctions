@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Configuration;
-using System.IO;
+using System;
 
 namespace ProsumerAuctionPlatform.Services
 {
@@ -32,5 +32,26 @@ namespace ProsumerAuctionPlatform.Services
 
         public int Delay => 
             _configuration.GetValue<int>("Delay", 1500);
+
+        public string SeqUrl =>
+            _configuration.GetValue<string>("Seq:Url", "http://localhost:5341")!;
+
+        public string DbPath =>
+            _configuration.GetValue<string>("Database:Path", "./myDatabase.db")!;
+
+        public void Validate()
+        {
+            if (!Uri.TryCreate(SeqUrl, UriKind.Absolute, out _))
+            {
+                throw new InvalidOperationException(
+                    "Config error: Seq:Url must be a valid absolute URL.");
+            }
+
+            if (string.IsNullOrWhiteSpace(DbPath))
+            {
+                throw new InvalidOperationException(
+                    "Config error: Database:Path is required.");
+            }
+        }
     }
 }

@@ -18,20 +18,40 @@ namespace ProsumerAuctionPlatform.DatabaseConnections
     public class DatabaseConnection : IDatabaseConnection
     {
         private static DatabaseConnection _instance;
+        private static string _configuredDatabasePath = Path.Combine(AppContext.BaseDirectory, "myDatabase.db");
         private SQLiteAsyncConnection _database;
+
+        public static void Configure(string databasePath)
+        {
+            if (string.IsNullOrWhiteSpace(databasePath))
+            {
+                throw new ArgumentException("Database path cannot be empty.", nameof(databasePath));
+            }
+
+            _configuredDatabasePath = databasePath;
+        }
 
         private DatabaseConnection()
         {
-            string databasePath = Environment.GetEnvironmentVariable("DB_PATH")
-                                  ?? Path.Combine(AppContext.BaseDirectory, "myDatabase.db");
+            string databasePath = _configuredDatabasePath;
+
+            if (!Path.IsPathRooted(databasePath))
+            {
+                databasePath = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), databasePath));
+            }
             
             // Fallback for IDE runs where the file may still sit in the project root.
             if (!File.Exists(databasePath))
             {
-                databasePath = Path.Combine(Directory.GetCurrentDirectory(), "myDatabase.db");
+                string discoveredPath = FindDatabaseFile();
+                if (!string.IsNullOrWhiteSpace(discoveredPath))
+                {
+                    databasePath = discoveredPath;
+                }
             }
 
             _database = new SQLiteAsyncConnection(databasePath);
+            Log.Information("SQLite database path: {DatabasePath}", databasePath);
         }
 
         private string FindDatabaseFile()

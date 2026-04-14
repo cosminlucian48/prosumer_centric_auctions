@@ -117,6 +117,9 @@ docker-compose logs -f prosumer-dev
 docker-compose down
 ```
 
+Docker Compose reads `.env` automatically when present. Use `.env.example` as the template
+for local overrides.
+
 ## Project Structure
 
 ```
@@ -135,17 +138,55 @@ docker-compose down
 
 ## Configuration
 
-Configuration is managed through `appsettings.json`:
+Configuration uses a single .NET configuration pipeline with this precedence:
+
+1. `appsettings.json`
+2. `appsettings.{DOTNET_ENVIRONMENT}.json`
+3. environment variables
+4. .NET user secrets (debug/local development)
+
+Current runtime keys:
 
 ```json
 {
-  "ProducerConfiguration": {
-    "NumberOfProsumers": 10,
-    "SimulationSpeed": 1000,
-    "LogLevel": "Information"
-  }
+   "NumberOfProsumers": 1,
+   "Delay": 1500,
+   "Seq": {
+      "Url": "http://localhost:5341"
+   },
+   "Database": {
+      "Path": "./myDatabase.db"
+   },
+   "OpenAI": {
+      "ApiKey": ""
+   }
 }
 ```
+
+Environment variables use .NET nested-key syntax:
+
+```dotenv
+DOTNET_ENVIRONMENT=Development
+Seq__Url=http://localhost:5341
+Database__Path=./myDatabase.db
+```
+
+For local secret storage, use .NET user secrets instead of committing values:
+
+```bash
+dotnet user-secrets set "OpenAI:ApiKey" "sk-your-secret-key"
+```
+
+### Where To Define Each Property
+
+Quick decision tree:
+
+1. Is the value secret (API key, credential, token)?
+2. If yes and running local `dotnet run`: use .NET User Secrets.
+3. If yes and running Docker/CI: use environment variables (`.env` or pipeline secret store), never committed JSON.
+4. If no and this is a default for everyone: put it in `appsettings.json`.
+5. If no but only for your machine/environment: put it in `appsettings.Development.json` or `.env`.
+6. If the same key exists in multiple places: highest precedence wins (User Secrets > env vars > environment JSON > base JSON).
 
 ## Documentation
 

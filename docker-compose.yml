@@ -43,10 +43,16 @@ services:
       # Share SQLite file via Docker volume (outside app build output folders).
       - db_data:/data
     environment:
+      # Enables polling file watcher for bind-mounted source changes in Docker.
       DOTNET_USE_POLLING_FILE_WATCHER: "1"
+      # Forces full restart on edits that cannot be hot-reloaded.
       DOTNET_WATCH_RESTART_ON_RUDE_EDIT: "true"
-      SEQ_URL: "http://seq:80"
-      DB_PATH: "/data/myDatabase.db"
+      # Selects appsettings.{environment}.json overlay at runtime.
+      DOTNET_ENVIRONMENT: "${DOTNET_ENVIRONMENT:-Development}"
+      # Seq endpoint in container network.
+      Seq__Url: "${Seq__Url:-http://seq:80}"
+      # SQLite file path in mounted volume.
+      Database__Path: "${Database__Path:-/data/myDatabase.db}"
     depends_on:
       - sqlite-data
       - seq

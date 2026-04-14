@@ -2,7 +2,7 @@
 
 # Stage 1: restore dependencies with strong layer caching.
 # Only the project file is copied first so restore is reused unless dependencies change.
-FROM mcr.microsoft.com/dotnet/sdk:6.0 AS restore
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS restore
 WORKDIR /src
 
 # Copy only project definition first to leverage Docker layer caching for restore.
@@ -26,7 +26,7 @@ COPY . .
 RUN dotnet publish ProsumerAuctionPlatform.csproj -c Release -o /app/publish --no-restore /p:UseAppHost=false
 
 # Stage 4: minimal runtime image for production-like execution.
-FROM mcr.microsoft.com/dotnet/runtime:6.0 AS runtime
+FROM mcr.microsoft.com/dotnet/runtime:8.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "ProsumerAuctionPlatform.dll"]
