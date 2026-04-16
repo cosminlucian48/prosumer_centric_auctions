@@ -32,7 +32,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
         public override void Setup()
         {
             MasLog.Event(this, "message", "Hi - Prosumer Battery started!");
-            Send(_myProsumerName, MessageTypes.ComponentReady);
+            Send(_myProsumerName, MessageTypes.Lifecycle.ComponentReady);
         }
 
         public override void Act(Message message)
@@ -51,16 +51,16 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
 
                 switch (action)
                 {
-                    case MessageTypes.ProsumerStart:
+                    case MessageTypes.Lifecycle.ProsumerStart:
                         HandleProsumerStart();
                         break;
-                    case MessageTypes.StoreEnergy:
+                    case MessageTypes.Battery.StoreEnergy:
                         HandleStoreEnergy(parameters);
                         break;
-                    case MessageTypes.ConsumeEnergy:
+                    case MessageTypes.Battery.ConsumeEnergy:
                         HandleConsumeEnergy(parameters);
                         break;
-                    case MessageTypes.Tick:
+                    case MessageTypes.Lifecycle.Tick:
                         HandleTick(parameters);
                         break;
                 }
@@ -92,13 +92,13 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
             if (storedEnergy > 0)
             {
                 _currentCapacity += storedEnergy;
-                Send(_myProsumerName, $"{MessageTypes.EnergyStored} {storedEnergy}");
+                Send(_myProsumerName, $"{MessageTypes.Battery.EnergyStored} {storedEnergy}");
             }
 
             double remainingEnergy = energyToStore - storedEnergy;
             if (remainingEnergy > 0)
             {
-                Send(_myProsumerName, $"{MessageTypes.BatteryMaximumCapacity} {remainingEnergy}");
+                Send(_myProsumerName, $"{MessageTypes.Battery.BatteryMaximumCapacity} {remainingEnergy}");
             }
         }
 
@@ -117,14 +117,14 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
 
             if (energyToConsume <= 0)
             {
-                Send(_myProsumerName, $"{MessageTypes.EnergyConsumed} 0");
+                Send(_myProsumerName, $"{MessageTypes.Battery.EnergyConsumed} 0");
                 return;
             }
 
             double energyConsumed = Math.Min(_currentCapacity, energyToConsume);
             _currentCapacity -= energyConsumed;
 
-            Send(_myProsumerName, $"{MessageTypes.EnergyConsumed} {energyConsumed}");
+            Send(_myProsumerName, $"{MessageTypes.Battery.EnergyConsumed} {energyConsumed}");
         }
 
         private void HandleTick(string parameters)
@@ -134,7 +134,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
 
         private void SendBatterySocUpdate()
         {
-            Send(_myProsumerName, $"{MessageTypes.BatterySOC} {_currentCapacity}");
+            Send(_myProsumerName, $"{MessageTypes.Battery.BatterySOC} {_currentCapacity}");
         }
 
         private void LogBatteryState(string phase, string action, string parameters)

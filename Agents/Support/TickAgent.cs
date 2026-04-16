@@ -53,7 +53,7 @@ namespace ProsumerAuctionPlatform.Agents.Support
                         DateTime currentTimestamp = StartTimestamp.AddMinutes(_tickIndex);
                         
                         // Broadcast tick message with format: "tick {tickIndex} {simulationTime}"
-                        Broadcast($"{MessageTypes.Tick} {_tickIndex} {currentTimestamp.ToString("hh:mm:ss tt")}");
+                        Broadcast($"{MessageTypes.Lifecycle.Tick} {_tickIndex} {currentTimestamp.ToString("hh:mm:ss tt")}");
                         
                         _tickIndex++;
                         

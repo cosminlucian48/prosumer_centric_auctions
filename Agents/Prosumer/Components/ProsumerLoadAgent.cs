@@ -23,7 +23,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
         public override void Setup()
         {
             MasLog.Event(this, "message", "Hi - Prosumer Load started!");
-            Send(_myProsumerName, MessageTypes.ComponentReady);
+            Send(_myProsumerName, MessageTypes.Lifecycle.ComponentReady);
         }
 
         private void UpdateProsumerLoadRate()
@@ -38,7 +38,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
                 var response = results.FirstOrDefault();
                 if (response == null) return;
 
-                Send(_myProsumerName, $"{MessageTypes.LoadUpdate} {response.Load}");
+                Send(_myProsumerName, $"{MessageTypes.Readings.LoadUpdate} {response.Load}");
             }
             catch (Exception ex)
             {
@@ -61,10 +61,10 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
 
                 switch (action)
             {
-                case MessageTypes.ProsumerStart:
+                case MessageTypes.Lifecycle.ProsumerStart:
                     HandleProsumerStart();
                     break;
-                case MessageTypes.Tick:
+                case MessageTypes.Lifecycle.Tick:
                     HandleTick(parameters);
                     break;
                 }

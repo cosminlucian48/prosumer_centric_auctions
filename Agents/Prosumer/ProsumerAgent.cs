@@ -111,45 +111,45 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
 
                 switch (action)
                 {
-                    case MessageTypes.Tick:
+                    case MessageTypes.Lifecycle.Tick:
                         break;
-                    case MessageTypes.ComponentReady:
+                    case MessageTypes.Lifecycle.ComponentReady:
                         HandleDependencyReady(message.Sender);
                         break;
-                    case MessageTypes.FindProsumers:
+                    case MessageTypes.Market.FindProsumers:
                         HandleDependencyReady(message.Sender);
                         break;
-                    case MessageTypes.BatterySOC:
+                    case MessageTypes.Battery.BatterySOC:
                         HandleBatterySOC(parameters);
                         break;
-                    case MessageTypes.LoadUpdate:
+                    case MessageTypes.Readings.LoadUpdate:
                         HandleLoadUpdate(parameters);
                         break;
-                    case MessageTypes.GenerationUpdate:
+                    case MessageTypes.Readings.GenerationUpdate:
                         HandleGenerationUpdate(parameters);
                         break;
-                    case MessageTypes.EnergyStored:
+                    case MessageTypes.Battery.EnergyStored:
                         HandleEnergyStored(parameters);
                         break;
-                    case MessageTypes.EnergyConsumed:
+                    case MessageTypes.Battery.EnergyConsumed:
                         HandleEnergyConsumed(parameters);
                         break;
-                    case MessageTypes.BatteryMaximumCapacity:
+                    case MessageTypes.Battery.BatteryMaximumCapacity:
                         HandleBatteryAtMaximumCapacity(parameters);
                         break;
-                    case MessageTypes.SellEnergyConfirmation:
+                    case MessageTypes.Grid.SellEnergyConfirmation:
                         HandleSellEnergyConfirmation(parameters);
                         break;
-                    case MessageTypes.BuyEnergyConfirmation:
+                    case MessageTypes.Grid.BuyEnergyConfirmation:
                         HandleBuyEnergyConfirmation(parameters);
                         break;
-                    case MessageTypes.EnergyMarketPrice:
+                    case MessageTypes.Market.EnergyMarketPrice:
                         HandleEnergyMarketPrice(parameters);
                         break;
-                    case MessageTypes.StartAuctioning:
+                    case MessageTypes.Grid.StartAuctioning:
                         HandleStartAuctioning();
                         break;
-                    case MessageTypes.SellingPrice:
+                    case MessageTypes.Auction.SellingPrice:
                         HandleSellingPrice(message.Sender, parameters);
                         break;
                 }
@@ -182,8 +182,8 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             {
                 _hasStartedProsumerComponents = true;
                 // Register this prosumer with the energy market so it receives price broadcasts.
-                Send(AgentNames.EnergyMarket, MessageTypes.ProsumerStart);
-                SendToMany(_prosumerComponentAgents, MessageTypes.ProsumerStart);
+                Send(AgentNames.EnergyMarket, MessageTypes.Lifecycle.ProsumerStart);
+                SendToMany(_prosumerComponentAgents, MessageTypes.Lifecycle.ProsumerStart);
             }
         }
 
@@ -251,7 +251,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
 
             if (Math.Abs(netEnergy) > double.Epsilon)
             {
-                Send(this.Name, MessageTypes.StartAuctioning);
+                Send(this.Name, MessageTypes.Grid.StartAuctioning);
             }
             else
             {
@@ -275,7 +275,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
                 // double startingPrice = this._currentGridSellPrice * 1.2;
                 // this._isAuctioning = true;
                 // Send(AgentNames.DutchAuctioneer,
-                //     $"{MessageTypes.ExcessToSell} {excessEnergy} {floorPrice} {startingPrice}");
+                //     $"{MessageTypes.Auction.ExcessToSell} {excessEnergy} {floorPrice} {startingPrice}");
 
                 // Basic-mode fallback: try local storage first, then settle overflow against the grid.
                 TryStorePendingSurplus();
@@ -286,7 +286,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
 
                 // Auction path kept for reference:
                 // this._isAuctioning = true;
-                // Send(AgentNames.DutchAuctioneer, $"{MessageTypes.DeficitToBuy} {energyDeficit}");
+                // Send(AgentNames.DutchAuctioneer, $"{MessageTypes.Auction.DeficitToBuy} {energyDeficit}");
 
                 // Basic-mode fallback: try discharging battery first, then buy remaining deficit from the grid.
                 _pendingDeficitEnergy += energyDeficit;
@@ -467,7 +467,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             }
 
             _outstandingStoreRequest = _pendingSurplusEnergy;
-            Send(AgentNames.GetBatteryName(this.Name), $"{MessageTypes.StoreEnergy} {_outstandingStoreRequest}");
+            Send(AgentNames.GetBatteryName(this.Name), $"{MessageTypes.Battery.StoreEnergy} {_outstandingStoreRequest}");
         }
 
         private void TryCoverPendingDeficit()
@@ -502,7 +502,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             }
 
             _outstandingConsumeRequest = _pendingDeficitEnergy;
-            Send(AgentNames.GetBatteryName(this.Name), $"{MessageTypes.ConsumeEnergy} {_outstandingConsumeRequest}");
+            Send(AgentNames.GetBatteryName(this.Name), $"{MessageTypes.Battery.ConsumeEnergy} {_outstandingConsumeRequest}");
         }
 
         private void LogProsumerState(string phase, string action, string parameters)

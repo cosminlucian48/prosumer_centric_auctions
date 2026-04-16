@@ -23,7 +23,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
         public override void Setup()
         {
             MasLog.Event(this, "message", "Hi - Prosumer Generator started!");
-            Send(_myProsumerName, MessageTypes.ComponentReady);
+            Send(_myProsumerName, MessageTypes.Lifecycle.ComponentReady);
         }
 
 
@@ -38,7 +38,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
                 var response = results.FirstOrDefault();
 
                 if (response == null) return;
-                Send(_myProsumerName, $"{MessageTypes.GenerationUpdate} {response.GenerationRate}");
+                Send(_myProsumerName, $"{MessageTypes.Readings.GenerationUpdate} {response.GenerationRate}");
             }
             catch (Exception ex)
             {
@@ -60,10 +60,10 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
 
                 switch (action)
             {
-                case MessageTypes.ProsumerStart:
+                case MessageTypes.Lifecycle.ProsumerStart:
                     HandleProsumerStart();
                     break;
-                case MessageTypes.Tick:
+                case MessageTypes.Lifecycle.Tick:
                     HandleTick(parameters);
                     break;
                 }

@@ -43,11 +43,11 @@ namespace ProsumerAuctionPlatform.Agents.EnergyMarket
 
                 if (string.IsNullOrEmpty(prosumer))
                 {
-                    SendToMany(this._prosumers.ToList(), $"{MessageTypes.EnergyMarketPrice} {this.CurrentEnergyPrice}");
+                    SendToMany(this._prosumers.ToList(), $"{MessageTypes.Market.EnergyMarketPrice} {this.CurrentEnergyPrice}");
                 }
                 else
                 {
-                    Send(prosumer, $"{MessageTypes.EnergyMarketPrice} {this.CurrentEnergyPrice}");
+                    Send(prosumer, $"{MessageTypes.Market.EnergyMarketPrice} {this.CurrentEnergyPrice}");
                 }
 
                 // LastTimestamp is already set from tick message, no need to add minutes
@@ -61,7 +61,7 @@ namespace ProsumerAuctionPlatform.Agents.EnergyMarket
         public override void Setup()
         {
             MasLog.Event(this, "message", "Hi - Energy Market Agent started");
-            Broadcast(MessageTypes.FindProsumers);
+            Broadcast(MessageTypes.Market.FindProsumers);
         }
 
         public override void Act(Message message)
@@ -78,12 +78,12 @@ namespace ProsumerAuctionPlatform.Agents.EnergyMarket
 
                 switch (action)
                 {
-                    case MessageTypes.Started:
+                    case MessageTypes.Lifecycle.Started:
                         break;
-                    case MessageTypes.ProsumerStart:
+                    case MessageTypes.Lifecycle.ProsumerStart:
                         HandleProsumerStart(message.Sender);
                         break;
-                    case MessageTypes.Tick:
+                    case MessageTypes.Lifecycle.Tick:
                         HandleTick(parameters);
                         break;
                     default:

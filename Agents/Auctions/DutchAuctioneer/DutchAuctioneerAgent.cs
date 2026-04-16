@@ -67,18 +67,18 @@ namespace ProsumerAuctionPlatform.Agents.Auctions.DutchAuctioneer
 
                 switch (action)
                 {
-                    case MessageTypes.Started:
+                    case MessageTypes.Lifecycle.Started:
                         break;
-                    case MessageTypes.DeficitToBuy:
+                    case MessageTypes.Auction.DeficitToBuy:
                         HandleNewParticipant(AuctionParticipant.Buyer, message.Sender, parameters);
                         break;
-                    case MessageTypes.ExcessToSell:
+                    case MessageTypes.Auction.ExcessToSell:
                         HandleNewParticipant(AuctionParticipant.Seller, message.Sender, parameters);
                         break;
-                    case MessageTypes.EnergyBid:
+                    case MessageTypes.Auction.EnergyBid:
                         HandleEnergyBid(message.Sender, parameters);
                         break;
-                    case MessageTypes.Tick:
+                    case MessageTypes.Lifecycle.Tick:
                         HandleTick(parameters);
                         break;
                     default:
@@ -146,7 +146,7 @@ namespace ProsumerAuctionPlatform.Agents.Auctions.DutchAuctioneer
             _sellingPrice = _sellers.Max(ps => ps.StartingPrice); // start from maximum StartingPrice
             _decrement = _decrementPercent * _sellingPrice; // initially decrement is 1%
             List<string> buyersNames = _buyers.Select(prosumer => prosumer.ProsumerName).ToList();
-            SendToMany(buyersNames, $"{MessageTypes.SellingPrice} {_sellingPrice}");
+            SendToMany(buyersNames, $"{MessageTypes.Auction.SellingPrice} {_sellingPrice}");
             MasLog.InfoDebug(this, "debug", $"{string.Join(" ", _buyers.Select(buyer => buyer.ProsumerName))}");
             _auctionStepsCounter += 1;
             _biddingTickCount = 0; // Reset bidding tick counter when starting auction
@@ -206,7 +206,7 @@ namespace ProsumerAuctionPlatform.Agents.Auctions.DutchAuctioneer
             {
                 _sellingPrice = _sellingPrice - _decrement; // start from maximum StartingPrice
                 List<string> buyersNames = _buyers.Select(prosumer => prosumer.ProsumerName).ToList();
-                SendToMany(buyersNames, $"{MessageTypes.SellingPrice} {_sellingPrice}");
+                SendToMany(buyersNames, $"{MessageTypes.Auction.SellingPrice} {_sellingPrice}");
                 // Bidding will continue on next tick (handled by HandleTick)
             }
             else
