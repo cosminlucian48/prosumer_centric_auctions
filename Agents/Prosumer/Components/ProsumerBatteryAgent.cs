@@ -8,24 +8,25 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
         private readonly string _myProsumerName;
         private double _currentCapacity; // storage value as WH.   1kwh of generated energy = 1 000 wh
         private readonly double _maximumCapacity;
-        private readonly int _chargingEfficiency;
-        private readonly int _dischargingEfficiency;
-        private readonly int _batterySOCNotificationInterval;
-        private readonly int _myProsumerId;
-        private const double InitialStateOfChargePercent = 0.5;
+        // TODO(battery-model): Apply charging efficiency losses when storing energy.
+        private readonly double _chargingEfficiency;
+        // TODO(battery-model): Apply discharging efficiency losses when consuming energy.
+        private readonly double _dischargingEfficiency;
         // private Dictionary<string, List<double>> _localEnergyDifference;
 
-        public ProsumerBatteryAgent(string prosumerName, int simulationDelayMs)
+        public ProsumerBatteryAgent(
+            string prosumerName,
+            double initialStateOfChargePercent,
+            double maximumCapacity,
+            double chargingEfficiency,
+            double dischargingEfficiency)
         {
             _myProsumerName = prosumerName;
-            _myProsumerId = int.Parse(prosumerName.Remove(0, 8));
             
-            _maximumCapacity = 15.0;
-            _chargingEfficiency = 1;
-            _dischargingEfficiency = 1;
-            _batterySOCNotificationInterval = simulationDelayMs;
-            // Start at 50% SOC to avoid immediate overflow exports and allow both charge/discharge flows.
-            _currentCapacity = _maximumCapacity * InitialStateOfChargePercent;
+            _maximumCapacity = maximumCapacity;
+            _chargingEfficiency = chargingEfficiency;
+            _dischargingEfficiency = dischargingEfficiency;
+            _currentCapacity = _maximumCapacity * Math.Clamp(initialStateOfChargePercent, 0.0, 1.0);
         }
 
         public override void Setup()
@@ -46,21 +47,25 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
                     return;
                 }
 
+                LogBatteryState("Before", action, parameters);
+
                 switch (action)
-            {
-                case MessageTypes.ProsumerStart:
-                    HandleProsumerStart();
-                    break;
-                case MessageTypes.StoreEnergy:
-                    HandleStoreEnergy(parameters);
-                    break;
-                case MessageTypes.ConsumeEnergy:
-                    HandleConsumeEnergy(parameters);
-                    break;
-                case MessageTypes.Tick:
-                    HandleTick(parameters);
-                    break;
+                {
+                    case MessageTypes.ProsumerStart:
+                        HandleProsumerStart();
+                        break;
+                    case MessageTypes.StoreEnergy:
+                        HandleStoreEnergy(parameters);
+                        break;
+                    case MessageTypes.ConsumeEnergy:
+                        HandleConsumeEnergy(parameters);
+                        break;
+                    case MessageTypes.Tick:
+                        HandleTick(parameters);
+                        break;
                 }
+
+                LogBatteryState("After", action, parameters);
             }
             catch (Exception ex)
             {
@@ -88,7 +93,6 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
             {
                 _currentCapacity += storedEnergy;
                 Send(_myProsumerName, $"{MessageTypes.EnergyStored} {storedEnergy}");
-                SendBatterySocUpdate();
             }
 
             double remainingEnergy = energyToStore - storedEnergy;
@@ -121,7 +125,6 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
             _currentCapacity -= energyConsumed;
 
             Send(_myProsumerName, $"{MessageTypes.EnergyConsumed} {energyConsumed}");
-            SendBatterySocUpdate();
         }
 
         private void HandleTick(string parameters)
@@ -132,6 +135,14 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
         private void SendBatterySocUpdate()
         {
             Send(_myProsumerName, $"{MessageTypes.BatterySOC} {_currentCapacity}");
+        }
+
+        private void LogBatteryState(string phase, string action, string parameters)
+        {
+            MasLog.InfoDebug(
+                this,
+                "debug",
+                $"{phase} {action} {parameters}: capacity {_currentCapacity}; max {_maximumCapacity}; charge_eff {_chargingEfficiency}; discharge_eff {_dischargingEfficiency}");
         }
     }
 }

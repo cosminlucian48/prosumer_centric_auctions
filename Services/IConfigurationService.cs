@@ -39,6 +39,26 @@ namespace ProsumerAuctionPlatform.Services
         int Delay { get; }
 
         /// <summary>
+        /// Gets the initial battery state of charge as a fraction in range [0, 1].
+        /// </summary>
+        double BatteryInitialStateOfChargePercent { get; }
+
+        /// <summary>
+        /// Gets the battery maximum energy capacity.
+        /// </summary>
+        double BatteryMaximumCapacity { get; }
+
+        /// <summary>
+        /// Gets the battery charging efficiency as a fraction in range (0, 1].
+        /// </summary>
+        double BatteryChargingEfficiency { get; }
+
+        /// <summary>
+        /// Gets the battery discharging efficiency as a fraction in range (0, 1].
+        /// </summary>
+        double BatteryDischargingEfficiency { get; }
+
+        /// <summary>
         /// Gets the Seq endpoint URL for structured logs.
         /// </summary>
         string SeqUrl { get; }

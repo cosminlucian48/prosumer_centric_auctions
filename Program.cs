@@ -46,7 +46,13 @@ class Program
         Log.Information("Starting MAS simulation...");
 
         // Initialize MAS environment
-        var world = new World(0, configService.Delay);
+        var world = new World(
+            0,
+            configService.Delay,
+            batteryInitialStateOfChargePercent: configService.BatteryInitialStateOfChargePercent,
+            batteryMaximumCapacity: configService.BatteryMaximumCapacity,
+            batteryChargingEfficiency: configService.BatteryChargingEfficiency,
+            batteryDischargingEfficiency: configService.BatteryDischargingEfficiency);
 
         var prosumerDefinitions = configService.GetProsumerDefinitions();
 
@@ -56,7 +62,11 @@ class Program
         foreach (var prosumer in prosumerDefinitions)
         {
             var prosumerAgent = new ProsumerAgent(prosumer.Capabilities);
-            world.AddProsumer(prosumerAgent, prosumer.Name, prosumer.Capabilities);
+            world.AddProsumer(
+                prosumerAgent,
+                prosumer.Name,
+                prosumer.Capabilities,
+                prosumer.Battery);
         }
         
         // world.Add(dutchAuctioneerAgent);

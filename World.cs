@@ -11,12 +11,27 @@ namespace ProsumerAuctionPlatform
 {
     internal class World : EnvironmentMas
     {
-        private readonly int _simulationDelayMs;
+        private readonly double _batteryInitialStateOfChargePercent;
+        private readonly double _batteryMaximumCapacity;
+        private readonly double _batteryChargingEfficiency;
+        private readonly double _batteryDischargingEfficiency;
 
-        public World(int numberOfTurns = 0, int delayAfterTurn = 0, bool randomOrder = true, Random rand = null, bool parallel = true)
+        public World(
+            int numberOfTurns = 0,
+            int delayAfterTurn = 0,
+            bool randomOrder = true,
+            Random rand = null,
+            bool parallel = true,
+            double batteryInitialStateOfChargePercent = 0.5,
+            double batteryMaximumCapacity = 15.0,
+            double batteryChargingEfficiency = 1.0,
+            double batteryDischargingEfficiency = 1.0)
             : base(numberOfTurns, delayAfterTurn, randomOrder, rand, parallel)
         {
-            _simulationDelayMs = delayAfterTurn;
+            _batteryInitialStateOfChargePercent = batteryInitialStateOfChargePercent;
+            _batteryMaximumCapacity = batteryMaximumCapacity;
+            _batteryChargingEfficiency = batteryChargingEfficiency;
+            _batteryDischargingEfficiency = batteryDischargingEfficiency;
 
             var energyMarketAgent = new EnergyMarketAgent();
             Add(energyMarketAgent, AgentNames.EnergyMarket);
@@ -24,7 +39,11 @@ namespace ProsumerAuctionPlatform
             var tickAgent = new TickAgent();
             Add(tickAgent, AgentNames.Tick);
         }
-        public void AddProsumer(Agent prosumer, string prosumerName, ProsumerCapabilities capabilities)
+        public void AddProsumer(
+            Agent prosumer,
+            string prosumerName,
+            ProsumerCapabilities capabilities,
+            ProsumerBatteryOverrides? batteryOverrides = null)
         {
             base.Add(prosumer, prosumerName);
 
@@ -42,7 +61,17 @@ namespace ProsumerAuctionPlatform
 
             if (capabilities.HasBattery)
             {
-                var batteryAgent = new ProsumerBatteryAgent(prosumerName, _simulationDelayMs);
+                double initialStateOfChargePercent = batteryOverrides?.InitialStateOfChargePercent ?? _batteryInitialStateOfChargePercent;
+                double maximumCapacity = batteryOverrides?.MaximumCapacity ?? _batteryMaximumCapacity;
+                double chargingEfficiency = batteryOverrides?.ChargingEfficiency ?? _batteryChargingEfficiency;
+                double dischargingEfficiency = batteryOverrides?.DischargingEfficiency ?? _batteryDischargingEfficiency;
+
+                var batteryAgent = new ProsumerBatteryAgent(
+                    prosumerName,
+                    initialStateOfChargePercent,
+                    maximumCapacity,
+                    chargingEfficiency,
+                    dischargingEfficiency);
                 base.Add(batteryAgent, AgentNames.GetBatteryName(prosumerName));
             }
         }

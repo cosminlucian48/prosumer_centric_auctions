@@ -100,16 +100,14 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             try
             {
                 MasLog.Received(this, message, $"[{message.Sender} -> {Name}]: {message.Content}");
-                MasLog.InfoDebug(
-                    this,
-                    "debug",
-                    $"Pending surplus {_pendingSurplusEnergy}; pending deficit {_pendingDeficitEnergy}; bill {this._currentBill}");
 
                 if (!Utils.TryParseMessage(message.Content, out string action, out string parameters))
                 {
                     MasLog.Event(this, "error", $"Failed to parse message: {message.Content}");
                     return;
                 }
+
+                LogProsumerState("Before", action, parameters);
 
                 switch (action)
                 {
@@ -155,6 +153,8 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
                         HandleSellingPrice(message.Sender, parameters);
                         break;
                 }
+
+                LogProsumerState("After", action, parameters);
             }
             catch (Exception ex)
             {
@@ -181,6 +181,8 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             if (allComponentsAreReady)
             {
                 _hasStartedProsumerComponents = true;
+                // Register this prosumer with the energy market so it receives price broadcasts.
+                Send(AgentNames.EnergyMarket, MessageTypes.ProsumerStart);
                 SendToMany(_prosumerComponentAgents, MessageTypes.ProsumerStart);
             }
         }
@@ -298,6 +300,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
         {
             if (double.TryParse(energyTriedToStore, out double energyStored))
             {
+                _currentBatteryStorageCapacity += energyStored;
                 _pendingSurplusEnergy = Math.Max(0, _pendingSurplusEnergy - energyStored);
                 _outstandingStoreRequest = Math.Max(0, _outstandingStoreRequest - energyStored);
             }
@@ -320,6 +323,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
                 return;
             }
 
+            _currentBatteryStorageCapacity = Math.Max(0, _currentBatteryStorageCapacity - consumedEnergy);
             _pendingDeficitEnergy = Math.Max(0, _pendingDeficitEnergy - consumedEnergy);
             _outstandingConsumeRequest = Math.Max(0, _outstandingConsumeRequest - consumedEnergy);
 
@@ -499,6 +503,14 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
 
             _outstandingConsumeRequest = _pendingDeficitEnergy;
             Send(AgentNames.GetBatteryName(this.Name), $"{MessageTypes.ConsumeEnergy} {_outstandingConsumeRequest}");
+        }
+
+        private void LogProsumerState(string phase, string action, string parameters)
+        {
+            MasLog.InfoDebug(
+                this,
+                "debug",
+                $"{phase} {action} {parameters}: load {_currentLoadEnergyTotal}; generation {_currentGeneratedEnergyTotal}; battery_soc {_currentBatteryStorageCapacity}; pending surplus {_pendingSurplusEnergy}; pending deficit {_pendingDeficitEnergy}; outstanding store {_outstandingStoreRequest}; outstanding consume {_outstandingConsumeRequest}; bill {_currentBill}");
         }
     }
 }
