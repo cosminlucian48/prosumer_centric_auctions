@@ -1,11 +1,11 @@
 using ActressMas;
+using ProsumerAuctionPlatform.Agents.EnergyMarket;
 using ProsumerAuctionPlatform.Agents.Prosumer;
+using ProsumerAuctionPlatform.Agents.Prosumer.Components;
 using ProsumerAuctionPlatform.Agents.Support;
 using ProsumerAuctionPlatform.Constants;
-using System;
-using ProsumerAuctionPlatform.Agents.EnergyMarket;
-using ProsumerAuctionPlatform.Agents.Prosumer.Components;
 using ProsumerAuctionPlatform.Models;
+using System;
 
 namespace ProsumerAuctionPlatform
 {
@@ -35,7 +35,7 @@ namespace ProsumerAuctionPlatform
 
             var energyMarketAgent = new EnergyMarketAgent();
             Add(energyMarketAgent, AgentNames.EnergyMarket);
-            
+
             var tickAgent = new TickAgent();
             Add(tickAgent, AgentNames.Tick);
         }

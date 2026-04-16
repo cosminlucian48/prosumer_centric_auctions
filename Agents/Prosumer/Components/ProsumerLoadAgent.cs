@@ -23,7 +23,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
         public override void Setup()
         {
             MasLog.Event(this, "message", "Hi - Prosumer Load started!");
-            Send(_myProsumerName, MessageTypes.Lifecycle.ComponentReady);
+            Send(_myProsumerName, $"{MessageTypes.Lifecycle.ComponentReady} {AgentRoles.Load}");
         }
 
         private void UpdateProsumerLoadRate()

@@ -35,7 +35,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
         private bool _isAuctioning = false;
 
         private readonly Dictionary<string, bool> _prosumerSetupReadiness = new Dictionary<string, bool>();
-        private readonly List<string> _prosumerComponentAgents = new List<string>();
+        private readonly Dictionary<string, string> _roleRegistry = new Dictionary<string, string>();
         private bool _hasStartedProsumerComponents;
         private readonly ProsumerCapabilities _capabilities;
 
@@ -64,20 +64,20 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
 
                 if (_capabilities.HasLoad)
                 {
-                    AddReadinessDependency(AgentNames.GetLoadName(this.Name));
+                    _prosumerSetupReadiness[AgentRoles.Load] = false;
                 }
 
                 if (_capabilities.HasGenerator)
                 {
-                    AddReadinessDependency(AgentNames.GetGeneratorName(this.Name));
+                    _prosumerSetupReadiness[AgentRoles.Generator] = false;
                 }
 
                 if (_capabilities.HasBattery)
                 {
-                    AddReadinessDependency(AgentNames.GetBatteryName(this.Name));
+                    _prosumerSetupReadiness[AgentRoles.Battery] = false;
                 }
 
-                _prosumerSetupReadiness[AgentNames.EnergyMarket] = false;
+                _prosumerSetupReadiness[AgentRoles.EnergyMarket] = false;
 
                 // TODO: This is currently retained for future auction bidding logic.
                 _auctionEnergyPriceVariationFromGrid = Utils.RandNoGen.NextDouble() * (1.2 - 0.8) + 0.8;
@@ -87,12 +87,6 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
                 Serilog.Log.Error(ex, "Error setting up ProsumerAgent {AgentName}", this.Name);
                 throw;
             }
-        }
-
-        private void AddReadinessDependency(string agentName)
-        {
-            _prosumerSetupReadiness[agentName] = false;
-            _prosumerComponentAgents.Add(agentName);
         }
 
         public override void Act(Message message)
@@ -114,10 +108,10 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
                     case MessageTypes.Lifecycle.Tick:
                         break;
                     case MessageTypes.Lifecycle.ComponentReady:
-                        HandleDependencyReady(message.Sender);
+                        HandleDependencyReady(message.Sender, parameters);
                         break;
                     case MessageTypes.Market.FindProsumers:
-                        HandleDependencyReady(message.Sender);
+                        HandleDependencyReady(message.Sender, AgentRoles.EnergyMarket);
                         break;
                     case MessageTypes.Battery.BatterySOC:
                         HandleBatterySOC(parameters);
@@ -162,29 +156,31 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             }
         }
 
-        private void HandleDependencyReady(string sender)
+        private void HandleDependencyReady(string sender, string role)
         {
-            if (_prosumerSetupReadiness.ContainsKey(sender))
-            {
-                _prosumerSetupReadiness[sender] = true;
-            }
+            _roleRegistry[role] = sender;
+            if (_prosumerSetupReadiness.ContainsKey(role))
+                _prosumerSetupReadiness[role] = true;
 
             if (_hasStartedProsumerComponents)
-            {
                 return;
-            }
 
-            // Startup currently depends on the three component agents plus the energy market
-            // publishing its discovery message. Keep this gate explicit until startup is refactored.
-            bool allComponentsAreReady = _prosumerSetupReadiness.Values.All(componentIsReady => componentIsReady);
-
-            if (allComponentsAreReady)
+            bool allReady = _prosumerSetupReadiness.Values.All(r => r);
+            if (allReady)
             {
                 _hasStartedProsumerComponents = true;
-                // Register this prosumer with the energy market so it receives price broadcasts.
-                Send(AgentNames.EnergyMarket, MessageTypes.Lifecycle.ProsumerStart);
-                SendToMany(_prosumerComponentAgents, MessageTypes.Lifecycle.ProsumerStart);
+                SendToMany(
+                    _roleRegistry.Values.ToList(),
+                    MessageTypes.Lifecycle.ProsumerStart);
             }
+        }
+
+        private void SendToRole(string role, string content)
+        {
+            if (_roleRegistry.TryGetValue(role, out string? agentName))
+                Send(agentName, content);
+            else
+                Serilog.Log.Warning("No agent registered for role {Role} — message dropped: {Content}", role, content);
         }
 
         private void HandleBatterySOC(string currentBatteryStorageCapacity)
@@ -467,7 +463,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             }
 
             _outstandingStoreRequest = _pendingSurplusEnergy;
-            Send(AgentNames.GetBatteryName(this.Name), $"{MessageTypes.Battery.StoreEnergy} {_outstandingStoreRequest}");
+            SendToRole(AgentRoles.Battery, $"{MessageTypes.Battery.StoreEnergy} {_outstandingStoreRequest}");
         }
 
         private void TryCoverPendingDeficit()
@@ -502,7 +498,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             }
 
             _outstandingConsumeRequest = _pendingDeficitEnergy;
-            Send(AgentNames.GetBatteryName(this.Name), $"{MessageTypes.Battery.ConsumeEnergy} {_outstandingConsumeRequest}");
+            SendToRole(AgentRoles.Battery, $"{MessageTypes.Battery.ConsumeEnergy} {_outstandingConsumeRequest}");
         }
 
         private void LogProsumerState(string phase, string action, string parameters)

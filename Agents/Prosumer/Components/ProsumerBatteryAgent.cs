@@ -32,7 +32,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
         public override void Setup()
         {
             MasLog.Event(this, "message", "Hi - Prosumer Battery started!");
-            Send(_myProsumerName, MessageTypes.Lifecycle.ComponentReady);
+            Send(_myProsumerName, $"{MessageTypes.Lifecycle.ComponentReady} {AgentRoles.Battery}");
         }
 
         public override void Act(Message message)

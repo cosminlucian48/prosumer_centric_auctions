@@ -10,7 +10,7 @@ namespace ProsumerAuctionPlatform.Constants
         public const string Tick = "tick";
         // TODO: Replace with proper constant when VPP agent is implemented
         public const string VPP = "vpp";
-        
+
         public static string GetProsumerName(int prosumerId) => $"prosumer{prosumerId}";
         public static string GetBatteryName(string prosumerName) => $"battery{prosumerName}";
         public static string GetGeneratorName(string prosumerName) => $"generator{prosumerName}";
