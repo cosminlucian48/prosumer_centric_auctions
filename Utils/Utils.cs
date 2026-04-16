@@ -1,43 +1,12 @@
-using ProsumerAuctionPlatform.Services;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ProsumerAuctionPlatform
 {
     public class Utils
     {
-        private static IConfigurationService _configurationService;
-
-        public static int NoTurns = 10;
-        public static int EnergyLoadRateNumberOfDelays { get; private set; }
-        public static int EnergyGenerationRateNumberOfDelays { get; private set; }
-        public static int EnergyPriceNumberOfDelays { get; private set; }
-        public static int NumberOfProsumers { get; private set; }
-        public static int EnergyMarketParticipantsSignUpInterval { get; private set; }
-
-        public static int Delay { get; private set; } = 1500;
         public static Random RandNoGen = new Random();
         public static readonly Guid CorrelationId = Guid.NewGuid();
-
-        /// <summary>
-        /// Initializes the Utils class with configuration service.
-        /// Must be called before using configuration-dependent properties.
-        /// </summary>
-        /// <param name="configurationService">The configuration service instance.</param>
-        public static void InitializeConfiguration(IConfigurationService configurationService)
-        {
-            _configurationService = configurationService ?? throw new ArgumentNullException(nameof(configurationService));
-            
-            EnergyLoadRateNumberOfDelays = _configurationService.EnergyLoadRateNumberOfDelays;
-            EnergyGenerationRateNumberOfDelays = _configurationService.EnergyGenerationRateNumberOfDelays;
-            EnergyPriceNumberOfDelays = _configurationService.EnergyPriceNumberOfDelays;
-            NumberOfProsumers = _configurationService.NumberOfProsumers;
-            EnergyMarketParticipantsSignUpInterval = _configurationService.EnergyMarketParticipantsSignUpInterval;
-            Delay = _configurationService.Delay;
-        }
         
 
         [Obsolete("Use TryParseMessage for safer parsing with error handling")]
@@ -146,19 +115,5 @@ namespace ProsumerAuctionPlatform
             }
         }
         
-        public static string Str(object p1, object p2)
-        {
-            return string.Format("{0} {1}", p1, p2);
-        }
-
-        public static string Str(object p1, object p2, object p3)
-        {
-            return string.Format("{0} {1} {2}", p1, p2, p3);
-        }
-
-        public static string Str(object p1, object p2, object p3, object p4)
-        {
-            return string.Format("{0} {1} {2} {3}", p1, p2, p3, p4);
-        }
     }
 }

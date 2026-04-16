@@ -1,5 +1,6 @@
 using ActressMas;
 using ProsumerAuctionPlatform.Constants;
+using ProsumerAuctionPlatform.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -34,9 +35,19 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
         private bool _isAuctioning = false;
 
         private readonly Dictionary<string, bool> _prosumerSetupReadiness = new Dictionary<string, bool>();
+        private readonly List<string> _prosumerComponentAgents = new List<string>();
         private bool _hasStartedProsumerComponents;
+        private readonly ProsumerCapabilities _capabilities;
 
-        public ProsumerAgent() : base() { }
+        public ProsumerAgent() : this(new ProsumerCapabilities(true, true, true))
+        {
+        }
+
+        public ProsumerAgent(ProsumerCapabilities capabilities) : base()
+        {
+            _capabilities = capabilities;
+        }
+
         public override void Setup()
         {
             try
@@ -50,9 +61,22 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
                     Serilog.Log.Warning("Invalid prosumer name format: {Name}", this.Name);
                 }
                 MasLog.Event(this, "message", "Hi - Prosumer Agent started!");
-                _prosumerSetupReadiness[AgentNames.GetLoadName(this.Name)] = false;
-                _prosumerSetupReadiness[AgentNames.GetGeneratorName(this.Name)] = false;
-                _prosumerSetupReadiness[AgentNames.GetBatteryName(this.Name)] = false;
+
+                if (_capabilities.HasLoad)
+                {
+                    AddReadinessDependency(AgentNames.GetLoadName(this.Name));
+                }
+
+                if (_capabilities.HasGenerator)
+                {
+                    AddReadinessDependency(AgentNames.GetGeneratorName(this.Name));
+                }
+
+                if (_capabilities.HasBattery)
+                {
+                    AddReadinessDependency(AgentNames.GetBatteryName(this.Name));
+                }
+
                 _prosumerSetupReadiness[AgentNames.EnergyMarket] = false;
 
                 // TODO: This is currently retained for future auction bidding logic.
@@ -63,6 +87,12 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
                 Serilog.Log.Error(ex, "Error setting up ProsumerAgent {AgentName}", this.Name);
                 throw;
             }
+        }
+
+        private void AddReadinessDependency(string agentName)
+        {
+            _prosumerSetupReadiness[agentName] = false;
+            _prosumerComponentAgents.Add(agentName);
         }
 
         public override void Act(Message message)
@@ -151,7 +181,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             if (allComponentsAreReady)
             {
                 _hasStartedProsumerComponents = true;
-                SendToMany(_prosumerSetupReadiness.Keys.ToList(), MessageTypes.ProsumerStart);
+                SendToMany(_prosumerComponentAgents, MessageTypes.ProsumerStart);
             }
         }
 
@@ -171,6 +201,13 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             if (double.TryParse(newLoadValue, out double loadValue))
             {
                 this._currentLoadEnergyTotal += loadValue;
+
+                if (!_capabilities.HasGenerator)
+                {
+                    HandleEnergyConsume();
+                    return;
+                }
+
                 this._flagMessageFromLoadAgent = !this._flagMessageFromLoadAgent;
                 if (this._flagMessageFromLoadAgent == this._flagMessageFromGeneratorAgent)
                 {
@@ -187,6 +224,13 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             if (double.TryParse(newGenerationValue, out double generationValue))
             {
                 this._currentGeneratedEnergyTotal += generationValue;
+
+                if (!_capabilities.HasLoad)
+                {
+                    HandleEnergyConsume();
+                    return;
+                }
+
                 this._flagMessageFromGeneratorAgent = !this._flagMessageFromGeneratorAgent;
                 if (this._flagMessageFromGeneratorAgent == this._flagMessageFromLoadAgent)
                 {
@@ -229,7 +273,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
                 // double startingPrice = this._currentGridSellPrice * 1.2;
                 // this._isAuctioning = true;
                 // Send(AgentNames.DutchAuctioneer,
-                //     Utils.Str(MessageTypes.ExcessToSell, excessEnergy, floorPrice, startingPrice));
+                //     $"{MessageTypes.ExcessToSell} {excessEnergy} {floorPrice} {startingPrice}");
 
                 // Basic-mode fallback: try local storage first, then settle overflow against the grid.
                 TryStorePendingSurplus();
@@ -240,7 +284,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
 
                 // Auction path kept for reference:
                 // this._isAuctioning = true;
-                // Send(AgentNames.DutchAuctioneer, Utils.Str(MessageTypes.DeficitToBuy, energyDeficit));
+                // Send(AgentNames.DutchAuctioneer, $"{MessageTypes.DeficitToBuy} {energyDeficit}");
 
                 // Basic-mode fallback: try discharging battery first, then buy remaining deficit from the grid.
                 _pendingDeficitEnergy += energyDeficit;
@@ -396,6 +440,18 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
 
         private void TryStorePendingSurplus()
         {
+            if (!_capabilities.HasBattery)
+            {
+                if (_pendingSurplusEnergy > double.Epsilon)
+                {
+                    SellEnergyToGrid(_pendingSurplusEnergy);
+                    _pendingSurplusEnergy = 0;
+                    _outstandingStoreRequest = 0;
+                }
+
+                return;
+            }
+
             if (_outstandingStoreRequest > 0)
             {
                 return;
@@ -407,11 +463,23 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             }
 
             _outstandingStoreRequest = _pendingSurplusEnergy;
-            Send(AgentNames.GetBatteryName(this.Name), Utils.Str(MessageTypes.StoreEnergy, _outstandingStoreRequest));
+            Send(AgentNames.GetBatteryName(this.Name), $"{MessageTypes.StoreEnergy} {_outstandingStoreRequest}");
         }
 
         private void TryCoverPendingDeficit()
         {
+            if (!_capabilities.HasBattery)
+            {
+                if (_pendingDeficitEnergy > double.Epsilon)
+                {
+                    BuyEnergyFromGrid(_pendingDeficitEnergy);
+                    _pendingDeficitEnergy = 0;
+                    _outstandingConsumeRequest = 0;
+                }
+
+                return;
+            }
+
             if (_outstandingConsumeRequest > 0)
             {
                 return;
@@ -430,7 +498,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             }
 
             _outstandingConsumeRequest = _pendingDeficitEnergy;
-            Send(AgentNames.GetBatteryName(this.Name), Utils.Str(MessageTypes.ConsumeEnergy, _outstandingConsumeRequest));
+            Send(AgentNames.GetBatteryName(this.Name), $"{MessageTypes.ConsumeEnergy} {_outstandingConsumeRequest}");
         }
     }
 }

@@ -15,7 +15,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
         private const double InitialStateOfChargePercent = 0.5;
         // private Dictionary<string, List<double>> _localEnergyDifference;
 
-        public ProsumerBatteryAgent(string prosumerName)
+        public ProsumerBatteryAgent(string prosumerName, int simulationDelayMs)
         {
             _myProsumerName = prosumerName;
             _myProsumerId = int.Parse(prosumerName.Remove(0, 8));
@@ -23,7 +23,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
             _maximumCapacity = 15.0;
             _chargingEfficiency = 1;
             _dischargingEfficiency = 1;
-            _batterySOCNotificationInterval = 1 * Utils.Delay;
+            _batterySOCNotificationInterval = simulationDelayMs;
             // Start at 50% SOC to avoid immediate overflow exports and allow both charge/discharge flows.
             _currentCapacity = _maximumCapacity * InitialStateOfChargePercent;
         }
@@ -87,14 +87,14 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
             if (storedEnergy > 0)
             {
                 _currentCapacity += storedEnergy;
-                Send(_myProsumerName, Utils.Str(MessageTypes.EnergyStored, storedEnergy));
+                Send(_myProsumerName, $"{MessageTypes.EnergyStored} {storedEnergy}");
                 SendBatterySocUpdate();
             }
 
             double remainingEnergy = energyToStore - storedEnergy;
             if (remainingEnergy > 0)
             {
-                Send(_myProsumerName, Utils.Str(MessageTypes.BatteryMaximumCapacity, remainingEnergy));
+                Send(_myProsumerName, $"{MessageTypes.BatteryMaximumCapacity} {remainingEnergy}");
             }
         }
 
@@ -113,14 +113,14 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
 
             if (energyToConsume <= 0)
             {
-                Send(_myProsumerName, Utils.Str(MessageTypes.EnergyConsumed, 0));
+                Send(_myProsumerName, $"{MessageTypes.EnergyConsumed} 0");
                 return;
             }
 
             double energyConsumed = Math.Min(_currentCapacity, energyToConsume);
             _currentCapacity -= energyConsumed;
 
-            Send(_myProsumerName, Utils.Str(MessageTypes.EnergyConsumed, energyConsumed));
+            Send(_myProsumerName, $"{MessageTypes.EnergyConsumed} {energyConsumed}");
             SendBatterySocUpdate();
         }
 
@@ -131,7 +131,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
 
         private void SendBatterySocUpdate()
         {
-            Send(_myProsumerName, Utils.Str(MessageTypes.BatterySOC, _currentCapacity));
+            Send(_myProsumerName, $"{MessageTypes.BatterySOC} {_currentCapacity}");
         }
     }
 }

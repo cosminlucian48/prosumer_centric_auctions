@@ -32,20 +32,18 @@ namespace ProsumerAuctionPlatform.Agents.Auctions.DutchAuctioneer
         private double _decrementPercent = 0.01;
 
         // Tick-based timing
-        // Convert old intervals to ticks: 
-        // - Participant sign-up: was EnergyMarketParticipantsSignUpInterval * Utils.Delay ms
-        //   Using EnergyMarketParticipantsSignUpInterval as number of ticks (e.g., 3 ticks = 3 minutes)
-        // - Bidding iteration: was 2 * Utils.Delay ms, using 2 ticks = 2 minutes
+        // - Participant sign-up uses configured tick count (e.g., 3 ticks = 3 minutes)
+        // - Bidding iteration uses fixed 2 ticks between price updates
         private int _participantSignUpTickCount = 0;
         private int _biddingTickCount = 0;
         private readonly int _participantSignUpTicks;
         private readonly int _biddingIntervalTicks = 2; // 2 ticks = 2 minutes between bidding iterations
 
-        public DutchAuctioneerAgent() : base()
+        public DutchAuctioneerAgent(int participantSignUpTicks) : base()
         {
             // Convert participant sign-up interval to ticks
             // Use EnergyMarketParticipantsSignUpInterval directly as ticks (e.g., 3 = 3 minutes)
-            _participantSignUpTicks = Utils.EnergyMarketParticipantsSignUpInterval;
+            _participantSignUpTicks = participantSignUpTicks;
 
             LastTimestamp = new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day, 0, 0, 0);
         }
@@ -148,7 +146,7 @@ namespace ProsumerAuctionPlatform.Agents.Auctions.DutchAuctioneer
             _sellingPrice = _sellers.Max(ps => ps.StartingPrice); // start from maximum StartingPrice
             _decrement = _decrementPercent * _sellingPrice; // initially decrement is 1%
             List<string> buyersNames = _buyers.Select(prosumer => prosumer.ProsumerName).ToList();
-            SendToMany(buyersNames, Utils.Str(MessageTypes.SellingPrice, $"{_sellingPrice}"));
+            SendToMany(buyersNames, $"{MessageTypes.SellingPrice} {_sellingPrice}");
             MasLog.InfoDebug(this, "debug", $"{string.Join(" ", _buyers.Select(buyer => buyer.ProsumerName))}");
             _auctionStepsCounter += 1;
             _biddingTickCount = 0; // Reset bidding tick counter when starting auction
@@ -208,7 +206,7 @@ namespace ProsumerAuctionPlatform.Agents.Auctions.DutchAuctioneer
             {
                 _sellingPrice = _sellingPrice - _decrement; // start from maximum StartingPrice
                 List<string> buyersNames = _buyers.Select(prosumer => prosumer.ProsumerName).ToList();
-                SendToMany(buyersNames, Utils.Str(MessageTypes.SellingPrice, $"{_sellingPrice}"));
+                SendToMany(buyersNames, $"{MessageTypes.SellingPrice} {_sellingPrice}");
                 // Bidding will continue on next tick (handled by HandleTick)
             }
             else

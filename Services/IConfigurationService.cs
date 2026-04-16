@@ -1,5 +1,8 @@
 namespace ProsumerAuctionPlatform.Services
 {
+    using System.Collections.Generic;
+    using ProsumerAuctionPlatform.Models;
+
     /// <summary>
     /// Interface for configuration service providing type-safe access to configuration values.
     /// </summary>
@@ -44,6 +47,17 @@ namespace ProsumerAuctionPlatform.Services
         /// Gets the SQLite database path.
         /// </summary>
         string DbPath { get; }
+
+        /// <summary>
+        /// Gets startup prosumer definitions with per-prosumer capabilities.
+        /// </summary>
+        IReadOnlyList<ProsumerDefinition> GetProsumerDefinitions();
+
+        /// <summary>
+        /// Gets the default prosumer capability profile.
+        /// Kept for compatibility; this value is derived from the first configured prosumer.
+        /// </summary>
+        ProsumerCapabilities GetProsumerCapabilities();
 
         /// <summary>
         /// Validates required configuration and throws clear startup errors.

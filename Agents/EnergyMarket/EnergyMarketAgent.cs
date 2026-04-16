@@ -43,11 +43,11 @@ namespace ProsumerAuctionPlatform.Agents.EnergyMarket
 
                 if (string.IsNullOrEmpty(prosumer))
                 {
-                    SendToMany(this._prosumers.ToList(), Utils.Str(MessageTypes.EnergyMarketPrice, this.CurrentEnergyPrice));
+                    SendToMany(this._prosumers.ToList(), $"{MessageTypes.EnergyMarketPrice} {this.CurrentEnergyPrice}");
                 }
                 else
                 {
-                    Send(prosumer, Utils.Str(MessageTypes.EnergyMarketPrice, this.CurrentEnergyPrice));
+                    Send(prosumer, $"{MessageTypes.EnergyMarketPrice} {this.CurrentEnergyPrice}");
                 }
 
                 // LastTimestamp is already set from tick message, no need to add minutes

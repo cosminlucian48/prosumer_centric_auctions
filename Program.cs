@@ -30,7 +30,6 @@ class Program
         // Initialize configuration service
         var configService = new ConfigurationService(configuration);
         configService.Validate();
-        Utils.InitializeConfiguration(configService);
 
         // Ensure database connection uses the typed config source only.
         DatabaseConnection.Configure(configService.DbPath);
@@ -47,15 +46,17 @@ class Program
         Log.Information("Starting MAS simulation...");
 
         // Initialize MAS environment
-        var world = new World(0, Utils.Delay);
+        var world = new World(0, configService.Delay);
+
+        var prosumerDefinitions = configService.GetProsumerDefinitions();
 
         
-        var dutchAuctioneerAgent = new DutchAuctioneerAgent();
+        var dutchAuctioneerAgent = new DutchAuctioneerAgent(configService.EnergyMarketParticipantsSignUpInterval);
 
-        for (int i = 1; i <= Utils.NumberOfProsumers; i++)
+        foreach (var prosumer in prosumerDefinitions)
         {
-            var prosumerAgent = new ProsumerAgent();
-            world.AddProsumer(prosumerAgent, $"prosumer{i}");
+            var prosumerAgent = new ProsumerAgent(prosumer.Capabilities);
+            world.AddProsumer(prosumerAgent, prosumer.Name, prosumer.Capabilities);
         }
         
         // world.Add(dutchAuctioneerAgent);

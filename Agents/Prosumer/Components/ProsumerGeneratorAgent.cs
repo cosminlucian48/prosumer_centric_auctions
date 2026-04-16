@@ -38,7 +38,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
                 var response = results.FirstOrDefault();
 
                 if (response == null) return;
-                Send(_myProsumerName, Utils.Str(MessageTypes.GenerationUpdate, response.GenerationRate));
+                Send(_myProsumerName, $"{MessageTypes.GenerationUpdate} {response.GenerationRate}");
             }
             catch (Exception ex)
             {
