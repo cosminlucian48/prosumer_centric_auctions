@@ -17,7 +17,8 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
         {
             _myProsumerName = prosumerName;
             _currentTimestamp = "";
-            _myProsumerId = int.Parse(prosumerName.Remove(0, 8));
+            if (!int.TryParse(prosumerName.Remove(0, 8), out _myProsumerId))
+                Serilog.Log.Warning("Could not parse prosumer ID from name: {Name}", prosumerName);
         }
 
         public override void Setup()
@@ -59,13 +60,13 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
                 }
 
                 switch (action)
-            {
-                case MessageTypes.Lifecycle.ProsumerStart:
-                    HandleProsumerStart();
-                    break;
-                case MessageTypes.Lifecycle.Tick:
-                    HandleTick(parameters);
-                    break;
+                {
+                    case MessageTypes.Lifecycle.ProsumerStart:
+                        HandleProsumerStart();
+                        break;
+                    case MessageTypes.Lifecycle.Tick:
+                        HandleTick(parameters);
+                        break;
                 }
             }
             catch (Exception ex)

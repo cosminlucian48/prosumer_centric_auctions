@@ -5,9 +5,14 @@ namespace ProsumerAuctionPlatform.Services.Settlement
     /// <summary>
     /// Placeholder auction settlement channel. Not yet active.
     /// To activate once DutchAuctioneerAgent is wired back into the world:
-    ///   1. Set IsAvailable to true (or wire it to prosumer auction state).
-    ///   2. Implement TrySettleSurplus / TrySettleDeficit to send to the auctioneer.
-    ///   3. Insert at position 0 of both chains in ProsumerAgent — zero other changes needed.
+    ///   1. Accept an <c>IProsumerSettlementContext</c> in the constructor.
+    ///   2. Seed a per-prosumer price preference at construction:
+    ///      <c>_pricePreference = Utils.RandNoGen.NextDouble() * (1.2 - 0.8) + 0.8</c>
+    ///      Used to compute bid threshold: <c>ctx.GridSellPrice * _pricePreference</c>.
+    ///   3. Implement TrySettleSurplus / TrySettleDeficit to send bids to the auctioneer
+    ///      and handle <c>MessageTypes.Auction.SellingPrice</c> confirmations.
+    ///   4. Set IsAvailable to true once the auctioneer is registered.
+    ///   5. Insert at position 0 of both chains in ProsumerAgent — zero other changes needed.
     /// </summary>
     internal class AuctionSettlementChannel : ISettlementChannel
     {

@@ -60,9 +60,6 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
                     case MessageTypes.Battery.ConsumeEnergy:
                         HandleConsumeEnergy(parameters);
                         break;
-                    case MessageTypes.Lifecycle.Tick:
-                        HandleTick(parameters);
-                        break;
                 }
 
                 LogBatteryState("After", action, parameters);
@@ -125,11 +122,6 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer.Components
             _currentCapacity -= energyConsumed;
 
             Send(_myProsumerName, $"{MessageTypes.Battery.EnergyConsumed} {energyConsumed}");
-        }
-
-        private void HandleTick(string parameters)
-        {
-            // nothing to do yet
         }
 
         private void SendBatterySocUpdate()

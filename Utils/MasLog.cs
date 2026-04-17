@@ -83,7 +83,7 @@ public static class MasLog
             .ForContext("Value", log)
             .ForContext("CorrelationId",Utils.CorrelationId)
             .ForContext("Elapsed", ElapsedSinceStart())
-            .Information("Extra: {Extra}", log);
+            .Debug("Extra: {Extra}", log);
     }
     public static void Debug(Agent agent, string eventType, object? log = null)
     {

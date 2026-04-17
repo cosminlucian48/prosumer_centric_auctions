@@ -11,6 +11,7 @@ namespace ProsumerAuctionPlatform.Constants
             public const string Tick           = "tick";
             public const string ComponentReady = "component_ready";
             public const string ProsumerStart  = "prosumer_start";
+            public const string NetEnergyReady = "net_energy_ready";
             public const string Started        = "started";
         }
 
@@ -37,15 +38,6 @@ namespace ProsumerAuctionPlatform.Constants
         {
             public const string LoadUpdate       = "load_update";
             public const string GenerationUpdate = "generation_update";
-        }
-
-        /// <summary>Grid settlement messages (prosumer ↔ energy market / grid).</summary>
-        public static class Grid
-        {
-            public const string StartAuctioning        = "startAuctioning";
-            public const string SellEnergy             = "sell_energy";
-            public const string SellEnergyConfirmation = "sell_energy_confirmation";
-            public const string BuyEnergyConfirmation  = "buy_energy_confirmation";
         }
 
         /// <summary>Dutch auction messages (prosumer ↔ auctioneer agent).</summary>

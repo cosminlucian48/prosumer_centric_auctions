@@ -35,6 +35,7 @@ class Program
         DatabaseConnection.Configure(configService.DbPath);
 
         Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Debug()
             .Enrich.FromLogContext()
             .WriteTo.Console()             // still see logs in terminal
             .WriteTo.Seq(configService.SeqUrl)   // send logs to Seq
