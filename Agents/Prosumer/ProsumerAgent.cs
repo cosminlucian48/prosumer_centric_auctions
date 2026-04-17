@@ -1,6 +1,7 @@
 using ActressMas;
 using ProsumerAuctionPlatform.Constants;
 using ProsumerAuctionPlatform.Models;
+using ProsumerAuctionPlatform.Services.Settlement;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,20 +9,24 @@ using Serilog;
 
 namespace ProsumerAuctionPlatform.Agents.Prosumer
 {
-    internal class ProsumerAgent : Agent
+    internal class ProsumerAgent : Agent, IProsumerSettlementContext
     {
         public int ProsumerId { get; private set; } = 0;
         private double _currentLoadEnergyTotal;
         private double _currentGeneratedEnergyTotal;
         private double _currentBatteryStorageCapacity;
-        // Energy settlement state for the basic battery/grid mode.
+        // Energy settlement state.
         private double _pendingSurplusEnergy;
         private double _pendingDeficitEnergy;
-        private double _outstandingStoreRequest;
-        private double _outstandingConsumeRequest;
 
         private double _currentGridBuyPrice;
         private double _currentGridSellPrice;
+
+        // Settlement channel chain.
+        private readonly BatterySettlementChannel _batteryChannel;
+        private readonly GridSettlementChannel _gridChannel;
+        private readonly List<ISettlementChannel> _surplusChain;
+        private readonly List<ISettlementChannel> _deficitChain;
 
         private double _currentBill = 0.0;
 
@@ -46,7 +51,29 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
         public ProsumerAgent(ProsumerCapabilities capabilities) : base()
         {
             _capabilities = capabilities;
+            _batteryChannel = new BatterySettlementChannel(this);
+            _gridChannel = new GridSettlementChannel(this);
+            _surplusChain = new List<ISettlementChannel>
+            {
+                _batteryChannel,
+                // new AuctionSettlementChannel(),  // TODO: insert at position 0 when auction is active
+                _gridChannel,
+            };
+            _deficitChain = new List<ISettlementChannel>
+            {
+                _batteryChannel,
+                // new AuctionSettlementChannel(),  // TODO: insert at position 0 when auction is active
+                _gridChannel,
+            };
         }
+
+        // --- IProsumerSettlementContext ---
+        bool IProsumerSettlementContext.HasBattery      => _capabilities.HasBattery;
+        double IProsumerSettlementContext.BatterySOC    => _currentBatteryStorageCapacity;
+        double IProsumerSettlementContext.GridBuyPrice  => _currentGridBuyPrice;
+        double IProsumerSettlementContext.GridSellPrice => _currentGridSellPrice;
+        void IProsumerSettlementContext.SendToRole(string role, string content) => SendToRole(role, content);
+        void IProsumerSettlementContext.AddToBill(double delta) => _currentBill += delta;
 
         public override void Setup()
         {
@@ -266,27 +293,18 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
                 double excessEnergy = this._currentGeneratedEnergyTotal - this._currentLoadEnergyTotal;
                 _pendingSurplusEnergy += excessEnergy;
 
-                // Auction path kept for reference:
+                // Auction path: insert AuctionSettlementChannel at position 0 of _surplusChain.
                 // double floorPrice = this._currentGridSellPrice * 0.8;
                 // double startingPrice = this._currentGridSellPrice * 1.2;
-                // this._isAuctioning = true;
-                // Send(AgentNames.DutchAuctioneer,
-                //     $"{MessageTypes.Auction.ExcessToSell} {excessEnergy} {floorPrice} {startingPrice}");
-
-                // Basic-mode fallback: try local storage first, then settle overflow against the grid.
-                TryStorePendingSurplus();
+                RunSurplusChain(_pendingSurplusEnergy);
             }
             else if (this._currentGeneratedEnergyTotal < this._currentLoadEnergyTotal)
             {
                 double energyDeficit = this._currentLoadEnergyTotal - this._currentGeneratedEnergyTotal;
-
-                // Auction path kept for reference:
-                // this._isAuctioning = true;
-                // Send(AgentNames.DutchAuctioneer, $"{MessageTypes.Auction.DeficitToBuy} {energyDeficit}");
-
-                // Basic-mode fallback: try discharging battery first, then buy remaining deficit from the grid.
                 _pendingDeficitEnergy += energyDeficit;
-                TryCoverPendingDeficit();
+
+                // Auction path: insert AuctionSettlementChannel at position 0 of _deficitChain.
+                RunDeficitChain(_pendingDeficitEnergy);
             }
 
             ResetEnergyWindow();
@@ -298,7 +316,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             {
                 _currentBatteryStorageCapacity += energyStored;
                 _pendingSurplusEnergy = Math.Max(0, _pendingSurplusEnergy - energyStored);
-                _outstandingStoreRequest = Math.Max(0, _outstandingStoreRequest - energyStored);
+                _batteryChannel.OnSurplusConfirmed(energyStored);
             }
             else
             {
@@ -321,17 +339,18 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
 
             _currentBatteryStorageCapacity = Math.Max(0, _currentBatteryStorageCapacity - consumedEnergy);
             _pendingDeficitEnergy = Math.Max(0, _pendingDeficitEnergy - consumedEnergy);
-            _outstandingConsumeRequest = Math.Max(0, _outstandingConsumeRequest - consumedEnergy);
+            _batteryChannel.OnDeficitConfirmed(consumedEnergy);
 
-            // If battery could not satisfy the requested amount, buy the remainder from grid.
-            if (_outstandingConsumeRequest > 0)
+            // If battery could not satisfy the full requested amount, buy the shortfall from grid.
+            double shortfall = _batteryChannel.OutstandingConsumeRequest;
+            if (shortfall > 0)
             {
-                BuyEnergyFromGrid(_outstandingConsumeRequest);
-                _pendingDeficitEnergy = Math.Max(0, _pendingDeficitEnergy - _outstandingConsumeRequest);
-                _outstandingConsumeRequest = 0;
+                _gridChannel.TrySettleDeficit(shortfall);
+                _pendingDeficitEnergy = Math.Max(0, _pendingDeficitEnergy - shortfall);
+                _batteryChannel.ClearOutstandingDeficit();
             }
 
-            TryCoverPendingDeficit();
+            RunDeficitChain(_pendingDeficitEnergy);
         }
 
         private void HandleBatteryAtMaximumCapacity(string capacityDifference)
@@ -340,13 +359,12 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             {
                 if (overflowEnergy > 0)
                 {
-                    // TODO: Replace this direct grid settlement with the intended VPP or auction route.
-                    SellEnergyToGrid(overflowEnergy);
+                    _gridChannel.TrySettleSurplus(overflowEnergy);
                     _pendingSurplusEnergy = Math.Max(0, _pendingSurplusEnergy - overflowEnergy);
-                    _outstandingStoreRequest = Math.Max(0, _outstandingStoreRequest - overflowEnergy);
+                    _batteryChannel.OnSurplusOverflow(overflowEnergy);
                 }
 
-                TryStorePendingSurplus();
+                RunSurplusChain(_pendingSurplusEnergy);
             }
             else
             {
@@ -420,85 +438,36 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             _isAuctioning = false;
         }
 
-        private void BuyEnergyFromGrid(double energyDeficit)
-        {
-            // TODO: Move this to a dedicated grid/VPP integration once market settlement is modeled explicitly.
-            this._currentBill -= energyDeficit * this._currentGridBuyPrice;
-        }
-
-        private void SellEnergyToGrid(double excessEnergy)
-        {
-            // TODO: Move this to a dedicated grid/VPP integration once export settlement is modeled explicitly.
-            this._currentBill += excessEnergy * this._currentGridSellPrice;
-        }
-
         private void ResetEnergyWindow()
         {
             this._currentGeneratedEnergyTotal = 0.0;
             this._currentLoadEnergyTotal = 0.0;
         }
 
-        private void TryStorePendingSurplus()
+        private void RunSurplusChain(double amount)
         {
-            if (!_capabilities.HasBattery)
+            double remaining = amount;
+            foreach (var channel in _surplusChain)
             {
-                if (_pendingSurplusEnergy > double.Epsilon)
-                {
-                    SellEnergyToGrid(_pendingSurplusEnergy);
-                    _pendingSurplusEnergy = 0;
-                    _outstandingStoreRequest = 0;
-                }
-
-                return;
+                if (remaining <= double.Epsilon) break;
+                if (!channel.IsAvailable) continue;
+                if (channel.HasPendingSurplusRequest) break; // async in-flight — wait for confirmation
+                double dispatched = channel.TrySettleSurplus(remaining);
+                remaining = Math.Max(0, remaining - dispatched);
             }
-
-            if (_outstandingStoreRequest > 0)
-            {
-                return;
-            }
-
-            if (_pendingSurplusEnergy <= double.Epsilon)
-            {
-                return;
-            }
-
-            _outstandingStoreRequest = _pendingSurplusEnergy;
-            SendToRole(AgentRoles.Battery, $"{MessageTypes.Battery.StoreEnergy} {_outstandingStoreRequest}");
         }
 
-        private void TryCoverPendingDeficit()
+        private void RunDeficitChain(double amount)
         {
-            if (!_capabilities.HasBattery)
+            double remaining = amount;
+            foreach (var channel in _deficitChain)
             {
-                if (_pendingDeficitEnergy > double.Epsilon)
-                {
-                    BuyEnergyFromGrid(_pendingDeficitEnergy);
-                    _pendingDeficitEnergy = 0;
-                    _outstandingConsumeRequest = 0;
-                }
-
-                return;
+                if (remaining <= double.Epsilon) break;
+                if (!channel.IsAvailable) continue;
+                if (channel.HasPendingDeficitRequest) break; // async in-flight — wait for confirmation
+                double dispatched = channel.TrySettleDeficit(remaining);
+                remaining = Math.Max(0, remaining - dispatched);
             }
-
-            if (_outstandingConsumeRequest > 0)
-            {
-                return;
-            }
-
-            if (_pendingDeficitEnergy <= double.Epsilon)
-            {
-                return;
-            }
-
-            if (_currentBatteryStorageCapacity <= double.Epsilon)
-            {
-                BuyEnergyFromGrid(_pendingDeficitEnergy);
-                _pendingDeficitEnergy = 0;
-                return;
-            }
-
-            _outstandingConsumeRequest = _pendingDeficitEnergy;
-            SendToRole(AgentRoles.Battery, $"{MessageTypes.Battery.ConsumeEnergy} {_outstandingConsumeRequest}");
         }
 
         private void LogProsumerState(string phase, string action, string parameters)
@@ -506,7 +475,7 @@ namespace ProsumerAuctionPlatform.Agents.Prosumer
             MasLog.InfoDebug(
                 this,
                 "debug",
-                $"{phase} {action} {parameters}: load {_currentLoadEnergyTotal}; generation {_currentGeneratedEnergyTotal}; battery_soc {_currentBatteryStorageCapacity}; pending surplus {_pendingSurplusEnergy}; pending deficit {_pendingDeficitEnergy}; outstanding store {_outstandingStoreRequest}; outstanding consume {_outstandingConsumeRequest}; bill {_currentBill}");
+                $"{phase} {action} {parameters}: load {_currentLoadEnergyTotal}; generation {_currentGeneratedEnergyTotal}; battery_soc {_currentBatteryStorageCapacity}; pending surplus {_pendingSurplusEnergy}; pending deficit {_pendingDeficitEnergy}; outstanding store {_batteryChannel.OutstandingStoreRequest}; outstanding consume {_batteryChannel.OutstandingConsumeRequest}; bill {_currentBill}");
         }
     }
 }
